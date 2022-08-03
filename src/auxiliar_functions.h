@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include <AsyncMqttClient.h>
 #include "time.h"
+#include "localTime.h"
 #include "HW_setup.h"
 
 /******************************************************************************
@@ -17,6 +18,11 @@ extern "C"
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
 }
+
+// FreeRTOS timer to force MQTT reconnection when WiFi is connected
+extern TimerHandle_t mqttReconnectTimer;
+// FreeRTOS timer to force WiFi reconnection
+extern TimerHandle_t wifiReconnectTimer;
 
 // add a new topic to the subscribed list (return TRUE on success)
 bool AddSubscribedTopic(const char* topic, uint8_t qos);
@@ -31,10 +37,10 @@ void printLocalTime();
 // connect to WiFi network - specify your WiFi ID in perf.h file --------------
 void connectToWifi(const char* _ssid, const char* _pswd);
 
-// wifi event handler -----------------------------------------------------------------------------
-void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info);
-void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info); // <--- call connectToMqtt() when we've got our IP address
-void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info);
+// // wifi event handler -----------------------------------------------------------------------------
+// void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info);
+// void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info); // <--- call connectToMqtt() when we've got our IP address
+// void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info);
 
 // the MQTT client --------------------------------------------------------------------------------
 extern AsyncMqttClient mqttClient;
