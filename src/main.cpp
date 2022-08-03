@@ -2,11 +2,13 @@
 #include <pref.h>
 #include <HW_setup.h>
 #include <WiFi.h>
+#include <wifiCallBacks.h>
 #include <Wire.h>
 #include <SPI.h>
 #include <ssd1306.h>
 #include <AsyncMqttClient.h>
-#include "time.h"
+#include <time.h>
+#include <localTime.h>
 #include <dati.h>
 #include "auxiliar_functions.h"
 #include "FFT.h"
@@ -274,9 +276,13 @@ void setup()
   setTimersRTOS(2000);
 
   // set WiFi onEvent callback function
-  WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
-  WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
-  WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
+  // see https://github.com/OttoWinter/async-mqtt-client/blob/master/examples/FullyFeatured-ESP32/FullyFeatured-ESP32.ino
+  WiFi.onEvent(WiFiEvent);
+
+  // // set WiFi onEvent callback function
+  //WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
+  // WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
+  // WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
 
   // define topics to be subscribed to
   bool result;

@@ -40,11 +40,11 @@ bool AddSubscribedTopic(const char *topic, uint8_t qos)
   }
 }
 
-// NTP local time synchronization -----------------------------------------------------------------
-// https://randomnerdtutorials.com/esp32-date-time-ntp-client-server-arduino/
-const char *ntpServer = "pool.ntp.org";
-const long gmtOffset_sec = 3600;
-const int daylightOffset_sec = 3600;
+// // NTP local time synchronization -----------------------------------------------------------------
+// // https://randomnerdtutorials.com/esp32-date-time-ntp-client-server-arduino/
+// const char *ntpServer = "pool.ntp.org";
+// const long gmtOffset_sec = 3600;
+// const int daylightOffset_sec = 3600;
 
 // the MQTT client --------------------------------------------------------------------------------
 AsyncMqttClient mqttClient;
@@ -88,52 +88,6 @@ void connectToWifi(const char *_ssid, const char *_pswd)
   sprintf(s, "MAC %s\n", WiFi.macAddress().c_str());
   ssd1306_publish(s);
 #endif
-}
-
-// Wifi events handler ----------------------------------------------------------------------------
-void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info)
-{
-  Serial.println(F("Connected to AP successfully!"));
-}
-
-// fired when we got our IP address. Here it is safe to call connectToMqtt
-void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info)
-{
-  Serial.print(F("WiFi connected - IP address: "));
-  Serial.println(WiFi.localIP());
-
-#ifndef SIMULATE_DATA  
-  ssd1306_publish("Wi-Fi connected\n");
-#endif
-
-  char s[21] = "";
-  sprintf(s, "IP %s\n", WiFi.localIP().toString().c_str());
-#ifndef SIMULATE_DATA
-  ssd1306_publish(s);
-#endif
-
-  // init and get the local time
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  printLocalTime();
-
-  // connect to MQTT broker
-  connectToMqtt();
-}
-
-// fired when connection to WiFi AP is lost
-void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info)
-{
-  Serial.println(F("Disconnected from WiFi access point"));
-  Serial.print(F("WiFi lost connection. Reason: "));
-  Serial.println(info.disconnected.reason);
-  Serial.println(F("Trying to Reconnect"));
-
-#ifndef SIMULATE_DATA
-  ssd1306_publish("WiFi lost connection\n");
-#endif
-
-  xTimerStop(mqttReconnectTimer, 0); // ensure we don't reconnect to MQTT while reconnecting to Wi-Fi
-  xTimerStart(wifiReconnectTimer, 0);
 }
 
 // MQTT event handlers ----------------------------------------------------------------------------
