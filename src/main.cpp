@@ -184,7 +184,7 @@ void setup()
   {
     // some debug/informative message
     ssd1306_log_setup();
-    ssd1306_publish("Create ADS table\n");
+    ssd1306_publish("Create EQ table\n");
   }
 
   // create ADS1256 equalization table
@@ -225,7 +225,7 @@ void setup()
   xReturned = xTaskCreatePinnedToCore(
       process,            // function that implements the task
       "process",          // name for the task
-      4096 + 2048,        // task size
+      4096,               // task size
       NULL,               // parameter passed into the task
       10,                 // task priority
       &processTaskHandle, // the task's handle
@@ -274,9 +274,9 @@ void setup()
     }
   }
 
-  Serial.println(F("Configurazione ADC ADS1256"));
   if (getSensMode() == REAL_DATA)
   {
+    Serial.println(F("Configurazione ADC ADS1256"));    
     ssd1306_publish("ADS1256 config...\n");
     // imposta la isr dedicata al data ready dell'ADC ADS1256, triggerata sul fronte di discesa dell'interrupt
     // configurazione dell'ADS1256 e delle sue linee di controllo
@@ -381,6 +381,7 @@ void process(void *pvParameters)
   static uint32_t numberOfAds1256Cycles = 0;
   static uint32_t countADCTorque = 0; // conteggio accessi ADC sensori di coppia
   float adcValue;
+  int kk;
 
   while (1)
   {
@@ -391,6 +392,9 @@ void process(void *pvParameters)
     case StartADC:
       // reset conteggio ADC torque
       countADCTorque = 0;
+      dataReady = false;
+      // imposta il canale corrente dell'ADC
+      Serial.printf("Channel: %d\n", current_channel);
 
       // inizializzazione fft
       if (real_fft_plan == NULL)
@@ -401,17 +405,13 @@ void process(void *pvParameters)
         pInput = real_fft_plan->input;
       }
 
-      dataReady = false;
-
-      // imposta il canale corrente dell'ADC
-      Serial.printf("Channel: %d\n", current_channel);
-      // if (getSensMode() == REAL_DATA)
-      // {
-      adc.setChannel(channels[current_channel]);
-      // associa l'interrupt esterno di nDRDY alla sua ISR
-      attachInterrupt(nDRDY, ISR_DRDY, FALLING);
-      adc.wakeup();
-      // }
+      if (getSensMode() == REAL_DATA)
+      {
+        adc.setChannel(channels[current_channel]);
+        // associa l'interrupt esterno di nDRDY alla sua ISR
+        attachInterrupt(nDRDY, ISR_DRDY, FALLING);
+        adc.wakeup();
+      }
 
       _stato = Sampling;
 
@@ -423,91 +423,98 @@ void process(void *pvParameters)
 
     case Sampling:
       // acquisizione da ADS1256
-      //  if (getSensMode() == REAL_DATA)
-      //  {
-
-      if (newData) // settato dalla ISR su DRDY dell'ADS1256
+      if (getSensMode() == REAL_DATA)
       {
-        newData = false;
 
-        if (sampleCounter < FFT_SIZE)
+        if (newData) // settato dalla ISR su DRDY dell'ADS1256
         {
-          // get ADS1256 new sample
-          adcValue = (float)adc.ReadRawData();
-          real_fft_plan->input[sampleCounter] = adc.volt(adcValue);
-          sampleCounter++;
-          numberOfAds1256Cycles++;
+          newData = false;
 
-          // get MCP3204 new samples
-          if ((numberOfAds1256Cycles >= MCP3204_NUMBER_OF_ADS1256_CYCLES) && (mcp3204_BufferAvailable() > 0))
+          if (sampleCounter < FFT_SIZE)
           {
-            numberOfAds1256Cycles = 0;
-            countADCTorque++;
+            // get ADS1256 new sample
+            adcValue = (float)adc.ReadRawData();
+            real_fft_plan->input[sampleCounter] = adc.volt(adcValue);
+            sampleCounter++;
+            numberOfAds1256Cycles++;
 
-            // Nota: ad ogni fase di Sampling (durata: 4096/7500 = 546,133ms)
-            //       questa sezione viene eseguita 3075 volte
-            //       corrisponde ad un intervallo di campionamento sul MCP3204 di 177,604us
-            //       ovvero 5630 campionamenti dei 4 canali
-            // if (getSensMode() == REAL_DATA)
-            //{
-            // mcp3204_getAllVoltage(vspi, CS_MCP3204, &mcp3204_dati);
-            //}
-            /*
-             * debug
-             */
-            // if (getSensMode() == SYM_DATA)
-            //{
-            mcp3204_dati.volt0 = 0.5;
-            mcp3204_dati.volt1 = 1.0;
-            mcp3204_dati.volt2 = 1.5;
-            mcp3204_dati.volt3 = 2.0;
-            /*
-             * fine debug
-             */
-            //}
-            mcp3204_Push(&mcp3204_dati);
+            // get MCP3204 new samples
+            if ((numberOfAds1256Cycles >= MCP3204_NUMBER_OF_ADS1256_CYCLES) && (mcp3204_BufferAvailable() > 0))
+            {
+              numberOfAds1256Cycles = 0;
+              countADCTorque++;
+
+              // Nota: ad ogni fase di Sampling (durata: 4096/7500 = 546,133ms)
+              //       questa sezione viene eseguita 3075 volte
+              //       corrisponde ad un intervallo di campionamento sul MCP3204 di 177,604us
+              //       ovvero 5630 campionamenti dei 4 canali
+              // mcp3204_getAllVoltage(vspi, CS_MCP3204, &mcp3204_dati);
+              /*
+               * debug
+               */
+              mcp3204_dati.volt0 = 0.5;
+              mcp3204_dati.volt1 = 1.0;
+              mcp3204_dati.volt2 = 1.5;
+              mcp3204_dati.volt3 = 2.0;
+              /*
+               * fine debug
+               */
+              mcp3204_Push(&mcp3204_dati);
+            }
+          }
+          else
+          {
+            detachInterrupt(nDRDY);
+            //  ferma il campionamento al completamento del numero di campioni
+            adc.standby();
+
+            // debug: campioni persi?
+            Serial.print("campioni memorizzati: ");
+            Serial.print(sampleCounter);
+            Serial.print("   campioni acquisiti: ");
+            Serial.print(countData - 1);
+            Serial.print("   differenza: ");
+            Serial.println(countData - 1 - sampleCounter);
+
+            // resetta l'indice dell'array dei dati
+            sampleCounter = 0;
+            countData = 0;
+
+            // segnala la fine del campionamento alla loop()
+            dataReady = true;
           }
         }
-        else
-        {
-          detachInterrupt(nDRDY);
-          //  ferma il campionamento al completamento del numero di campioni
-          adc.standby();
-
-          // debug: campioni persi?
-          Serial.print("campioni memorizzati: ");
-          Serial.print(sampleCounter);
-          Serial.print("   campioni acquisiti: ");
-          Serial.print(countData);
-          Serial.print("   differenza: ");
-          Serial.println(countData - sampleCounter);
-
-          // resetta l'indice dell'array dei dati
-          sampleCounter = 0;
-          countData = 0;
-
-          // segnala la fine del campionamento alla loop()
-          dataReady = true;
-        }
-        //  }
       }
 
-      // if (getSensMode() == SYM_DATA)
-      // {
-      //   //++ simulazione campionamento per FFT (durata 576ms)
-      //   for (int kk = 0; kk < FFT_SIZE; kk++)
-      //   {
-      //     real_fft_plan->input[kk] = 1.0 + 0.5 * current_channel;
-      //   }
-      //   if (millis() >= lastFFT + 576)
-      //   {
-      //     dataReady = true;
-      //   }
-      // }
+      // simulazione campionamento per FFT (durata 576ms)
+      else if (getSensMode() == SYM_DATA)
+      {
+        // dati ADS1256 simulati per singolo canale
+        for (kk = 0; kk < FFT_SIZE; kk++)
+        {
+          real_fft_plan->input[kk] = 1.0 + 0.5 * current_channel;
+        }
 
+        // dati coppie e velocità simulati
+        for (kk = 0; kk < MCP3204_NUMBER_OF_SAMPLES_PER_CHANNEL; kk++)
+        {
+          mcp3204_dati.volt0 = 0.5;
+          mcp3204_dati.volt1 = 1.0;
+          mcp3204_dati.volt2 = 1.5;
+          mcp3204_dati.volt3 = 2.0;
+          mcp3204_Push(&mcp3204_dati);
+        }
+
+        // durata del ciclo di acquisizione reale
+        if (millis() >= lastFFT + 576)
+        {
+          dataReady = true;
+        }
+      }
+
+      // termine dello stato di campionamento
       if (dataReady == true)
       {
-        detachInterrupt(nDRDY);
         dataReady = false;
         _stato = Compute;
       }
