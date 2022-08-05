@@ -2,7 +2,7 @@
 #define _MQTT_TOPICS_H
 
 // MQTT client ID
-#define thisClient "ESP32Udine" //"ESP32DevKit123" 
+#define thisClient "ESP32DevKit123" //"ESP32Udine"
 
 // message topic to deal with
 const char *inTopic = thisClient "/inTopic";            // first subscribed topic

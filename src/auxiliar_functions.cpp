@@ -1,6 +1,7 @@
 #include "auxiliar_functions.h"
 #include <ssd1306.h>
-#include <_modoCompilazione.h>
+//#include <_modoCompilazione.h>
+#include <sim_real_data_selector.h>
 
 // Manage list of subscribed topics
 // topic to subscribe
@@ -82,12 +83,13 @@ void connectToWifi(const char *_ssid, const char *_pswd)
   WiFi.begin(_ssid, _pswd);
   Serial.println(WiFi.macAddress());
 
-#ifndef SIMULATE_DATA
-  ssd1306_publish("Connecting to Wi-Fi\n");
-  char s[21] = "";
-  sprintf(s, "MAC %s\n", WiFi.macAddress().c_str());
-  ssd1306_publish(s);
-#endif
+  if (getSensMode() == REAL_DATA)
+  {
+    ssd1306_publish("Connecting to Wi-Fi\n");
+    char s[21] = "";
+    sprintf(s, "MAC %s\n", WiFi.macAddress().c_str());
+    ssd1306_publish(s);
+  }
 }
 
 // MQTT event handlers ----------------------------------------------------------------------------
@@ -96,9 +98,10 @@ void connectToMqtt()
 {
   Serial.println(F("Connecting to MQTT..."));
 
-#ifndef SIMULATE_DATA
-  ssd1306_publish("Connecting to MQTT\n");
-#endif
+  if (getSensMode() == REAL_DATA)
+  {
+    ssd1306_publish("Connecting to MQTT\n");
+  }
   mqttClient.connect();
 }
 
@@ -108,21 +111,10 @@ void connectToMqtt()
 void onMqttConnect(bool sessionPresent)
 {
   Serial.println(F("Connected to MQTT"));
-#ifndef SIMULATE_DATA
-  ssd1306_publish("Connected to MQTT\n");
-#endif
-
-  // Serial.print(F("Session present: "));
-  // Serial.println(sessionPresent);
-
-  //   uint16_t packetIdSub = mqttClient.subscribe(inTopic, 2);
-  //   Serial.printf("Subscribing %s at QoS 2, packetId: %d\n", inTopic, packetIdSub);
-
-  //   uint16_t packetIdSub2 = mqttClient.subscribe(ledTopic, 2);
-  //   Serial.printf("Subscribing %s at QoS 2, packetId: %d\n", ledTopic, packetIdSub2);
-
-  //   uint16_t packetIdSub3 = mqttClient.subscribe(Topic3, 2);
-  //   Serial.printf("Subscribing %s at QoS 2, packetId: %d\n", Topic3, packetIdSub3);
+  if (getSensMode() == REAL_DATA)
+  {
+    ssd1306_publish("Connected to MQTT\n");
+  }
 
   // traverse the list of topics to subscribe to
   tSubTopic *ptr = pListOfTopics;
@@ -139,9 +131,10 @@ void onMqttConnect(bool sessionPresent)
 // fired by mqttClient.onDisconnect and debug printing- mandatory
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
 {
-#ifndef SIMULATE_DATA
-  ssd1306_publish("Disconnected from MQTT\n");
-#endif
+  if (getSensMode() == REAL_DATA)
+  {
+    ssd1306_publish("Disconnected from MQTT\n");
+  }
 
   Serial.print(F("Disconnected from MQTT. Reason:"));
   switch (reason)

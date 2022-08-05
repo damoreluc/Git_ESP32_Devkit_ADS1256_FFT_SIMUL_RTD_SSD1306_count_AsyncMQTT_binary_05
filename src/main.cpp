@@ -20,15 +20,13 @@
 #include <rtd_MAX31865.h>
 #include <mcp3204.h>
 #include <mqtt_topics.h>
-
-// modificare questo file per cambiare la modalità di compilazione dati veri/simulati
-#include <_modoCompilazione.h>
+#include <sim_real_data_selector.h>
 
 // uncomment this #define to print fft components
 //#define PRINT_COMPONENTS
 
 // uncomment one of following #include to set the MQTT broker.
-// Leaving the comments will use the default broker (test.mosquitto.org)
+// Leaving all the comments will use the default broker (test.mosquitto.org)
 #include <shiftr_io.h>
 //#include <raspi4.h>
 
@@ -37,6 +35,10 @@ SPIClass hspi = SPIClass(HSPI);
 
 // ADC equalization table - see create_equalizer(m)
 float m[FFT_SIZE >> 1];
+
+// ADS1256 DRDY
+volatile bool newData = false;
+volatile uint16_t countData = 0;
 
 // ADC instance
 ADS1256 adc;
@@ -63,8 +65,12 @@ mcp3204Data mcp3204_dati;
 // canale SPI per connessione con ADC MCP3204
 SPIClass vspi = SPIClass(VSPI);
 
-// ISR per la gestione dell'arrivo di un nuovo campione
+// ISR per la gestione dell'arrivo di un nuovo campione sul fronte di discesa di DRDY
 void IRAM_ATTR ISR_DRDY();
+
+// puntatore al buffer dei dati in ingresso per FFT
+// viene inizializzato nella funzione process, allo stato
+IRAM_ATTR float *pInput;
 
 // time of last message published
 unsigned long lastMsg = millis();
@@ -89,9 +95,6 @@ const int mqttPort = 1883;
 const char *mqttUser = "";
 const char *mqttPassword = "";
 #endif
-
-// time interval in ms between two RTD publishing
-#define RTD_PERIOD 2000
 
 // flag true quando i dati sono pronti
 volatile bool dataReady = false;
@@ -129,9 +132,6 @@ stRTD temperature;
 
 // coda per temperature RTD
 QueueHandle_t xQueueRTD;
-
-// conteggio accessi ADC sensori di coppia
-uint32_t countADCTorque = 0;
 
 // coda per conteggio accessi ADC dei sensori di coppia
 QueueHandle_t xQueueCountADCTorque;
@@ -174,30 +174,40 @@ void DebugCurrentStatus(tStati st)
 // system setup -----------------------------------------------------------------------------------
 void setup()
 {
+  // acquisisce il pin SENS_MODE e aggiorna lo stato dati_simulati/dati_reali
+  readSensMode();
+
   Serial.begin(115200);
   bootMsg();
 
-#ifndef SIMULATE_DATA
-  // some debug/informative message
-  ssd1306_log_setup();
-  ssd1306_publish("Create ADS table\n");
-#endif
+  if (getSensMode() == REAL_DATA)
+  {
+    // some debug/informative message
+    ssd1306_log_setup();
+    ssd1306_publish("Create EQ table\n");
+  }
+  else if (getSensMode() == SYM_DATA)
+  {
+    Serial.println("Dati simulati, senza sensori e senza display");
+  }
 
   // create ADS1256 equalization table
   Serial.println(F("Creazione della tabella di equalizzazione"));
   create_equalizer(m);
 
-#ifndef SIMULATE_DATA
-  ssd1306_publish("Setting up RTD1\n");
-#endif
+  if (getSensMode() == REAL_DATA)
+  {
+    ssd1306_publish("Setting up RTD1\n");
+  }
 
   // setup RTD1 object: set to 2WIRE, 3WIRE or 4WIRE as necessary
   RTD1.begin(MAX31865_3WIRE);
   delay(500);
 
-#ifndef SIMULATE_DATA
-  ssd1306_publish("Setting up RTD2\n");
-#endif
+  if (getSensMode() == REAL_DATA)
+  {
+    ssd1306_publish("Setting up RTD2\n");
+  }
 
   // setup RTD2 object: set to 2WIRE, 3WIRE or 4WIRE as necessary
   RTD2.begin(MAX31865_3WIRE);
@@ -209,9 +219,10 @@ void setup()
   // creazione coda per pubblicazione conteggio accessi ADC coppie
   xQueueCountADCTorque = xQueueCreate(2, sizeof(uint32_t));
 
-#ifndef SIMULATE_DATA
-  ssd1306_publish("Create FFT task\n");
-#endif
+  if (getSensMode() == REAL_DATA)
+  {
+    ssd1306_publish("Create FFT task\n");
+  }
 
   BaseType_t xReturned;
   // crea il task di elaborazione della FFT
@@ -224,20 +235,24 @@ void setup()
       &processTaskHandle, // the task's handle
       1                   // pinned to core 1
   );
+
   if (xReturned != pdPASS)
   {
     Serial.println(F("Errore nella creazione del task FFT"));
     while (1)
     {
-#ifndef SIMULATE_DATA
-      ssd1306_publish("Error on FFT task\n");
-#endif
+      if (getSensMode() == REAL_DATA)
+      {
+        ssd1306_publish("Error on FFT task\n");
+      }
       yield();
     }
   }
-#ifndef SIMULATE_DATA
-  ssd1306_publish("Create publish task\n");
-#endif
+
+  if (getSensMode() == REAL_DATA)
+  {
+    ssd1306_publish("Create publish task\n");
+  }
 
   // crea il task di pubblicazione della FFT su MQTT
   xReturned = xTaskCreatePinnedToCore(
@@ -249,40 +264,38 @@ void setup()
       &publishTaskHandle, // the task's handle
       0                   // pinned to core 0
   );
+
   if (xReturned != pdPASS)
   {
     Serial.println(F("Errore nella creazione del task publishFFT"));
     while (1)
     {
-#ifndef SIMULATE_DATA
-      ssd1306_publish("Error on publish tsk\n");
-#endif
+      if (getSensMode() == REAL_DATA)
+      {
+        ssd1306_publish("Error on publish task\n");
+      }
       yield();
     }
   }
 
-  Serial.println(F("Configurazione ADC ADS1256"));
-#ifndef SIMULATE_DATA
-  ssd1306_publish("ADS1256 config...\n");
-  // imposta la isr dedicata al data ready dell'ADC ADS1256, triggerata sul fronte di discesa dell'interrupt
-  // configurazione dell'ADS1256 e delle sue linee di controllo
-  //  NB: SPI clock <= F_clkin / 4 = 7.68e6 / 4 = 1920000
-  adc.init(hspi, nCS, nDRDY, nPDWN, 1900000);
-  adc.setChannel(adc.ads1256_mux[0]);
-  adc.standby();
-#endif
+  if (getSensMode() == REAL_DATA)
+  {
+    Serial.println(F("Configurazione ADC ADS1256"));    
+    ssd1306_publish("ADS1256 config...\n");
+    // imposta la isr dedicata al data ready dell'ADC ADS1256, triggerata sul fronte di discesa dell'interrupt
+    // configurazione dell'ADS1256 e delle sue linee di controllo
+    //  NB: SPI clock <= F_clkin / 4 = 7.68e6 / 4 = 1920000
+    adc.init(hspi, nCS, nDRDY, nPDWN, 1900000);
+    adc.setChannel(adc.ads1256_mux[0]);
+    adc.standby();
+  }
 
   // set RTOS timers to handle automatic reconnection to WiFi / MQTT broker
-  setTimersRTOS(2000);
+  setTimersRTOS(4000);
 
   // set WiFi onEvent callback function
   // see https://github.com/OttoWinter/async-mqtt-client/blob/master/examples/FullyFeatured-ESP32/FullyFeatured-ESP32.ino
   WiFi.onEvent(WiFiEvent);
-
-  // // set WiFi onEvent callback function
-  //WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
-  // WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
-  // WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
 
   // define topics to be subscribed to
   bool result;
@@ -368,6 +381,11 @@ void process(void *pvParameters)
 {
   static uint64_t last = millis();
   static uint64_t lastFFT;
+  static uint16_t sampleCounter = 0; // number of samples gathered
+  static uint32_t numberOfAds1256Cycles = 0;
+  static uint32_t countADCTorque = 0; // conteggio accessi ADC sensori di coppia
+  float adcValue;
+  int kk;
 
   while (1)
   {
@@ -378,6 +396,9 @@ void process(void *pvParameters)
     case StartADC:
       // reset conteggio ADC torque
       countADCTorque = 0;
+      dataReady = false;
+      // imposta il canale corrente dell'ADC
+      Serial.printf("Channel: %d\n", current_channel);
 
       // inizializzazione fft
       if (real_fft_plan == NULL)
@@ -385,18 +406,16 @@ void process(void *pvParameters)
         Serial.println(F("Inizializzazione FFT"));
         // real_fft_plan = fft_init(FFT_SIZE, FFT_REAL, FFT_FORWARD, f_input, f_output);
         real_fft_plan = fft_init(FFT_SIZE, FFT_REAL, FFT_FORWARD, NULL, NULL);
+        pInput = real_fft_plan->input;
       }
 
-      dataReady = false;
-
-      // imposta il canale corrente dell'ADC
-      Serial.printf("Channel: %d\n", current_channel);
-#ifndef SIMULATE_DATA
-      adc.setChannel(channels[current_channel]);
-      // associa l'interrupt esterno di nDRDY alla sua ISR
-      attachInterrupt(nDRDY, ISR_DRDY, FALLING);
-      adc.wakeup();
-#endif
+      if (getSensMode() == REAL_DATA)
+      {
+        adc.setChannel(channels[current_channel]);
+        // associa l'interrupt esterno di nDRDY alla sua ISR
+        attachInterrupt(nDRDY, ISR_DRDY, FALLING);
+        adc.wakeup();
+      }
 
       _stato = Sampling;
 
@@ -407,47 +426,95 @@ void process(void *pvParameters)
       break;
 
     case Sampling:
-      // INIZIO test interferenza con ISR
-      if ((millis() >= last + MCP3204_PERIOD) && (mcp3204_BufferAvailable() > 0))
+      // acquisizione da ADS1256
+      if (getSensMode() == REAL_DATA)
       {
-        last = millis();
-        countADCTorque++;
 
-        // Nota: ad ogni fase di Sampling (durata: 4096/7500 = 546,133ms)
-        //       questa sezione viene eseguita 3075 volte
-        //       corrisponde ad un intervallo di campionamento sul MCP3204 di 177,604us
-        //       ovvero 5630 campionamenti dei 4 canali
-#ifndef SIMULATE_DATA
-        mcp3204_getAllVoltage(vspi, CS_MCP3204, &mcp3204_dati);
-#endif
-        /*
-         * debug
-         */
-#ifdef SIMULATE_DATA
-        mcp3204_dati.volt0 = 0.5;
-        mcp3204_dati.volt1 = 1.0;
-        mcp3204_dati.volt2 = 1.5;
-        mcp3204_dati.volt3 = 2.0;
-        /*
-         * fine debug
-         */
-#endif
-        mcp3204_Push(&mcp3204_dati);
+        if (newData) // settato dalla ISR su DRDY dell'ADS1256
+        {
+          newData = false;
+
+          if (sampleCounter < FFT_SIZE)
+          {
+            // get ADS1256 new sample
+            adcValue = (float)adc.ReadRawData();
+            real_fft_plan->input[sampleCounter] = adc.volt(adcValue);
+            sampleCounter++;
+            numberOfAds1256Cycles++;
+
+            // get MCP3204 new samples
+            if ((numberOfAds1256Cycles >= MCP3204_NUMBER_OF_ADS1256_CYCLES) && (mcp3204_BufferAvailable() > 0))
+            {
+              numberOfAds1256Cycles = 0;
+              countADCTorque++;
+
+              // Nota: ad ogni fase di Sampling (durata: 4096/7500 = 546,133ms)
+              //       questa sezione viene eseguita 3075 volte
+              //       corrisponde ad un intervallo di campionamento sul MCP3204 di 177,604us
+              //       ovvero 5630 campionamenti dei 4 canali
+              // mcp3204_getAllVoltage(vspi, CS_MCP3204, &mcp3204_dati);
+              /*
+               * debug
+               */
+              mcp3204_dati.volt0 = 0.5;
+              mcp3204_dati.volt1 = 1.0;
+              mcp3204_dati.volt2 = 1.5;
+              mcp3204_dati.volt3 = 2.0;
+              /*
+               * fine debug
+               */
+              mcp3204_Push(&mcp3204_dati);
+            }
+          }
+          else
+          {
+            detachInterrupt(nDRDY);
+            //  ferma il campionamento al completamento del numero di campioni
+            adc.standby();
+
+            // debug: campioni persi?
+            Serial.print("campioni memorizzati: ");
+            Serial.print(sampleCounter);
+            Serial.print("   campioni acquisiti: ");
+            Serial.print(countData - 1);
+            Serial.print("   differenza: ");
+            Serial.println(countData - 1 - sampleCounter);
+
+            // resetta l'indice dell'array dei dati
+            sampleCounter = 0;
+            countData = 0;
+
+            // segnala la fine del campionamento alla loop()
+            dataReady = true;
+          }
+        }
       }
-      // FINE test interferenza con ISR
 
-#ifdef SIMULATE_DATA
-      //++ simulazione campionamento per FFT (durata 576ms)
-      for (int kk = 0; kk < FFT_SIZE; kk++)
+      // simulazione campionamento per FFT (durata 576ms)
+      else if (getSensMode() == SYM_DATA)
       {
-        real_fft_plan->input[kk] = 1.0 + 0.5 * current_channel;
-      }
-      if (millis() >= lastFFT + 576)
-      {
-        dataReady = true;
-      }
-#endif
+        // dati ADS1256 simulati per singolo canale
+        for (kk = 0; kk < FFT_SIZE; kk++)
+        {
+          real_fft_plan->input[kk] = 1.0 + 0.5 * current_channel;
+        }
 
+        // dati coppie e velocità simulati
+        for (kk = 0; kk < MCP3204_NUMBER_OF_SAMPLES_PER_CHANNEL; kk++)
+        {
+          mcp3204_dati.volt0 = 0.5;
+          mcp3204_dati.volt1 = 1.0;
+          mcp3204_dati.volt2 = 1.5;
+          mcp3204_dati.volt3 = 2.0;
+          mcp3204_Push(&mcp3204_dati);
+        }
+
+        // durata del ciclo di acquisizione reale
+        delay(546);
+          dataReady = true;
+      }
+
+      // termine dello stato di campionamento
       if (dataReady == true)
       {
         dataReady = false;
@@ -627,7 +694,7 @@ void publishFFT(void *pvParameters)
             // pubblicazione stato RTD1
             do
             {
-              res = mqttClient.publish(outTopic3, 0, false, (const char *)&temp.fault1[0], strlen(&temp.fault1[0])); //MSG_FAULT_LEN);
+              res = mqttClient.publish(outTopic3, 0, false, (const char *)&temp.fault1[0], strlen(&temp.fault1[0])); // MSG_FAULT_LEN);
               delay(10);
             } while (res == 0);
 
@@ -692,24 +759,28 @@ void readRTD()
   {
     prev = now;
     // lettura del sensore RTD1
-#ifndef SIMULATE_DATA
-    getTemperature(RTD1, &temp.rtd1, &temp.fault1[0]);
-#endif
+    if (getSensMode() == REAL_DATA)
+    {
+      getTemperature(RTD1, &temp.rtd1, &temp.fault1[0]);
+    }
 
-#ifdef SIMULATE_DATA
-    temp.rtd1 = 20.0;
-    strcpy(&temp.fault1[0], "Ok");
-#endif
+    if (getSensMode() == SYM_DATA)
+    {
+      temp.rtd1 = 20.0;
+      strcpy(&temp.fault1[0], "Ok");
+    }
 
     // lettura del sensore RTD2
-#ifndef SIMULATE_DATA
-    getTemperature(RTD2, &temp.rtd2, &temp.fault2[0]);
-#endif
+    if (getSensMode() == REAL_DATA)
+    {
+      getTemperature(RTD2, &temp.rtd2, &temp.fault2[0]);
+    }
 
-#ifdef SIMULATE_DATA
-    temp.rtd2 = temp.rtd1 + 0.5;
-    strcpy(&temp.fault2[0], "Ok");
-#endif
+    if (getSensMode() == SYM_DATA)
+    {
+      temp.rtd2 = temp.rtd1 + 0.5;
+      strcpy(&temp.fault2[0], "Ok");
+    }
 
     // inserimento in coda
     if (uxQueueSpacesAvailable(xQueueRTD) > 0)
@@ -721,33 +792,11 @@ void readRTD()
 
 //-----------------------------------------------------------------------------
 // implementazione ISR
-portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
-
 // ISR per la gestione dell'arrivo di un nuovo campione
 void IRAM_ATTR ISR_DRDY()
 {
-#ifndef SIMULATE_DATA
-  static uint16_t sampleCounter = 0;
-  float value;
-  if (sampleCounter < FFT_SIZE)
-  {
-    portENTER_CRITICAL_ISR(&mux);
-    value = adc.ReadRawData();
-    value = adc.volt(value);
-    real_fft_plan->input[sampleCounter++] = value;
-    portEXIT_CRITICAL_ISR(&mux);
-  }
-  else
-  {
-    detachInterrupt(nDRDY);
-    // ferma il campionamento al completamento del numero di campioni
-    adc.standby();
-    // resetta l'indice dell'array dei dati
-    sampleCounter = 0;
-    // segnala la fine del campionamento alla loop()
-    dataReady = true;
-  }
-#endif
+  newData = true;
+  countData++;
 }
 
 //---------------------------------------------------------------------------------------------
