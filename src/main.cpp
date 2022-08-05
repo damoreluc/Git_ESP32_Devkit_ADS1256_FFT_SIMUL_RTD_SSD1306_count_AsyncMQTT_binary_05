@@ -186,6 +186,10 @@ void setup()
     ssd1306_log_setup();
     ssd1306_publish("Create EQ table\n");
   }
+  else if (getSensMode() == SYM_DATA)
+  {
+    Serial.println("Dati simulati, senza sensori e senza display");
+  }
 
   // create ADS1256 equalization table
   Serial.println(F("Creazione della tabella di equalizzazione"));
@@ -506,10 +510,8 @@ void process(void *pvParameters)
         }
 
         // durata del ciclo di acquisizione reale
-        if (millis() >= lastFFT + 576)
-        {
+        delay(546);
           dataReady = true;
-        }
       }
 
       // termine dello stato di campionamento
