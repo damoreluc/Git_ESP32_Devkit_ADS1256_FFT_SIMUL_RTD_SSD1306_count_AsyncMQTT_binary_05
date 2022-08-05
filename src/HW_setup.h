@@ -10,6 +10,13 @@
 // Note: GPIO2 on ESP32 DevKit
 #define LED_BUILTIN 2
 
+// pin di selezione hardware della modalità di generazione dei dati (simulati o dai sensori fisici)
+#define SENS_MODE 32
+
+// ingresso digitale ausiliario, optoisolato
+#define AUX_DIN 33
+
+
 /*
  *  Mappa interfacciamento con scheda ADS1256
  *    ADS1256           ESP32
@@ -28,6 +35,19 @@
 #define nPDWN 26
 
 /*
+ *  Mappa intefacciamento PGA MCP6S26
+ *    MCP6S26          ESP32
+ *    VDD               +5V
+ *    GND               GND
+ *    SCLK     <--      VSPI_SCK (IO18)
+ *    SI       <--      VSPI_MOSI (IO23)
+ *    SO       -->      not connected
+ *    !CS      <--      !CS_PGA0 (IO16)
+ */
+// MCP6S26 Chip select
+#define CS_PGA0 16
+
+/*
  *  Mappa interfacciamento con scheda MAX31865 per RTD1
  *    MAX31865          ESP32
  *    VIN               +3.3V
@@ -35,7 +55,7 @@
  *    CLK      <--      VSPI_SCK (IO18)
  *    SDI      <--      VSPI_MOSI (IO23)
  *    SDO      -->      VSPI_MISO (IO19)
- *    !CS      <--      CS1_MAX31865 (IO17)
+ *    !CS      <--      !CS1_MAX31865 (IO17)
  */
 // MAX31865 Chip select
 #define CS1_MAX31865 17
@@ -48,7 +68,7 @@
  *    CLK      <--      VSPI_SCK (IO18)
  *    SDI      <--      VSPI_MOSI (IO23)
  *    SDO      -->      VSPI_MISO (IO19)
- *    !CS      <--      CS2_MAX31865 (IO27)
+ *    !CS      <--      !CS2_MAX31865 (IO27)
  */
 // MAX31865 Chip select
 #define CS2_MAX31865 27
@@ -61,7 +81,7 @@
  *    CLK      <--      VSPI_SCK (IO18)
  *    SDI      <--      VSPI_MOSI (IO23)
  *    SDO      -->      VSPI_MISO (IO19)
- *    !CS      <--      CS_MCP3204 (IO5)
+ *    !CS      <--      !CS_MCP3204 (IO5)
  */
 // MCP3204 ADC chip select
 #define CS_MCP3204 5

@@ -6,7 +6,7 @@ uint16_t mcp3204_pos = 0;
 float mcp3204buffer[MCP3204_BUFFER_SIZE];
 
 uint16_t mcp3204_BufferAvailable() {
-    return (MCP3204_NUMBER_OF_SAMPLE - mcp3204_pos);
+    return (MCP3204_NUMBER_OF_SAMPLES_PER_CHANNEL - mcp3204_pos);
 }
 
 uint16_t mcp3204_getRaw(SPIClass &hwspi, uint8_t cs, uint8_t channel)
@@ -82,9 +82,9 @@ void mcp3204_getAllVoltage(SPIClass &hwspi, uint8_t cs, mcp3204Data *data) {
 void mcp3204_StoreBuffer(mcp3204Data *data, uint16_t position) {
     if (mcp3204_BufferAvailable() > 0) {
         mcp3204buffer[position] = data->volt0;
-        mcp3204buffer[position + MCP3204_NUMBER_OF_SAMPLE] = data->volt1;
-        mcp3204buffer[position + 2*MCP3204_NUMBER_OF_SAMPLE] = data->volt2;
-        mcp3204buffer[position + 3*MCP3204_NUMBER_OF_SAMPLE] = data->volt3;
+        mcp3204buffer[position + MCP3204_NUMBER_OF_SAMPLES_PER_CHANNEL] = data->volt1;
+        mcp3204buffer[position + 2*MCP3204_NUMBER_OF_SAMPLES_PER_CHANNEL] = data->volt2;
+        mcp3204buffer[position + 3*MCP3204_NUMBER_OF_SAMPLES_PER_CHANNEL] = data->volt3;
     }
 }
 

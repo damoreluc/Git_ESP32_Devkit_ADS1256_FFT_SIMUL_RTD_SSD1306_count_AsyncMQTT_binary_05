@@ -37,11 +37,6 @@ void printLocalTime();
 // connect to WiFi network - specify your WiFi ID in perf.h file --------------
 void connectToWifi(const char* _ssid, const char* _pswd);
 
-// // wifi event handler -----------------------------------------------------------------------------
-// void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info);
-// void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info); // <--- call connectToMqtt() when we've got our IP address
-// void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info);
-
 // the MQTT client --------------------------------------------------------------------------------
 extern AsyncMqttClient mqttClient;
 
