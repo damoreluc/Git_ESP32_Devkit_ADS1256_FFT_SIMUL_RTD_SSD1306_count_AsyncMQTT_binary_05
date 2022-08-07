@@ -28,6 +28,7 @@
 #define BLOCK_FLOAT_HALF_SIZE (BLOCK_FLOAT_SIZE/2)
 
 // 2. MCP3204 and torque/speed section ----------------------------------------------
+#define MCP3204_SPI_CLOCK 1250000  // see MCP320x datashhet DS21298E-page 3
 #define MCP3204_NUMBER_OF_CHANNELS 4
 #define MCP3204_PERIOD 10   // sampling period, in ms
 #define MCP3204_NUMBER_OF_SAMPLES_PER_CHANNEL ( FFT_SIZE * 1000 / ((uint32_t)FSAMPLE) / MCP3204_PERIOD )

@@ -1,6 +1,5 @@
 #include "auxiliar_functions.h"
 #include <ssd1306.h>
-//#include <_modoCompilazione.h>
 #include <sim_real_data_selector.h>
 
 // Manage list of subscribed topics
@@ -204,4 +203,33 @@ void onMqttPublish(uint16_t packetId)
   Serial.println(F("Publish acknowledged."));
   Serial.print(F("  packetId: "));
   Serial.println(packetId);
+}
+
+// ---------------------------------------------------------------------------------------------
+void printRcvMsg(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total)
+{
+
+  // print some information about the received message
+  Serial.print(F("Publish received on "));
+  printLocalTime();
+  Serial.print(F("  topic: "));
+  Serial.print(topic);
+  Serial.print(F("  payload: "));
+  for (int i = 0; i < len; i++)
+  {
+    Serial.print(payload[i]);
+  }
+  Serial.print("  qos: ");
+  Serial.print(properties.qos);
+  Serial.print(F("  dup: "));
+  Serial.print(properties.dup);
+  Serial.print(F("  retain: "));
+  Serial.print(properties.retain);
+  Serial.print(F("  len: "));
+  Serial.print(len);
+  Serial.print(F("  index: "));
+  Serial.print(index);
+  Serial.print(F("  total: "));
+  Serial.println(total);
+  Serial.println();
 }
