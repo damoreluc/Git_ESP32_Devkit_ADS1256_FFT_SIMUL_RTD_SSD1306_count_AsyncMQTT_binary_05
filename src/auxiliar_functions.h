@@ -57,5 +57,10 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
 // handle onMqttPublish event: fired when message publish is acknowledged - optional
 //   note: publish your message calling mqttClient.publish method
 void onMqttPublish(uint16_t packetId);
+// print received MQTT message, useful in debugging
+void printRcvMsg(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
+
+// other auxiliar functions
+
 
 #endif

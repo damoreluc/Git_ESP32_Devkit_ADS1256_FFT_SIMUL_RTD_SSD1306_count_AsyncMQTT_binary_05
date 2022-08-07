@@ -191,6 +191,16 @@ void setup()
     Serial.println("Dati simulati, senza sensori e senza display");
   }
 
+  // set MCP3204 Chip select line
+  if (getSensMode() == REAL_DATA)
+  {
+    pinMode(CS_MCP3204, OUTPUT);
+    digitalWrite(CS_MCP3204, HIGH);
+    // initialise vspi with default pins
+    // SCLK = 18, MISO = 19, MOSI = 23, SS = 5
+    vspi.begin();
+  }
+
   // create ADS1256 equalization table
   Serial.println(F("Creazione della tabella di equalizzazione"));
   create_equalizer(m);
@@ -280,7 +290,7 @@ void setup()
 
   if (getSensMode() == REAL_DATA)
   {
-    Serial.println(F("Configurazione ADC ADS1256"));    
+    Serial.println(F("Configurazione ADC ADS1256"));
     ssd1306_publish("ADS1256 config...\n");
     // imposta la isr dedicata al data ready dell'ADC ADS1256, triggerata sul fronte di discesa dell'interrupt
     // configurazione dell'ADS1256 e delle sue linee di controllo
@@ -408,21 +418,24 @@ void process(void *pvParameters)
         real_fft_plan = fft_init(FFT_SIZE, FFT_REAL, FFT_FORWARD, NULL, NULL);
         pInput = real_fft_plan->input;
       }
-
-      if (getSensMode() == REAL_DATA)
-      {
-        adc.setChannel(channels[current_channel]);
-        // associa l'interrupt esterno di nDRDY alla sua ISR
-        attachInterrupt(nDRDY, ISR_DRDY, FALLING);
-        adc.wakeup();
-      }
-
       _stato = Sampling;
 
       last = millis();
       lastFFT = last;
       countADCTorque = 0;
       mcp3204_ResetBuffer();
+
+      if (getSensMode() == REAL_DATA)
+      {
+        adc.setChannel(channels[current_channel]);
+        adc.wakeup();
+        // associa l'interrupt esterno di nDRDY alla sua ISR
+        attachInterrupt(nDRDY, ISR_DRDY, FALLING);
+
+        //
+        vspi.beginTransaction(SPISettings(MCP3204_SPI_CLOCK, MSBFIRST, SPI_MODE0));
+      }
+
       break;
 
     case Sampling:
@@ -452,14 +465,17 @@ void process(void *pvParameters)
               //       questa sezione viene eseguita 3075 volte
               //       corrisponde ad un intervallo di campionamento sul MCP3204 di 177,604us
               //       ovvero 5630 campionamenti dei 4 canali
-              // mcp3204_getAllVoltage(vspi, CS_MCP3204, &mcp3204_dati);
+              // vspi.beginTransaction(SPISettings(MCP3204_SPI_CLOCK, MSBFIRST, SPI_MODE0));
+              mcp3204_getAllVoltage(vspi, CS_MCP3204, &mcp3204_dati);
+              // fine della transazione con MCP3204
+              // vspi.endTransaction();
               /*
                * debug
                */
-              mcp3204_dati.volt0 = 0.5;
-              mcp3204_dati.volt1 = 1.0;
-              mcp3204_dati.volt2 = 1.5;
-              mcp3204_dati.volt3 = 2.0;
+              // mcp3204_dati.volt0 = 0.5;
+              // mcp3204_dati.volt1 = 1.0;
+              // mcp3204_dati.volt2 = 1.5;
+              // mcp3204_dati.volt3 = 2.0;
               /*
                * fine debug
                */
@@ -471,6 +487,9 @@ void process(void *pvParameters)
             detachInterrupt(nDRDY);
             //  ferma il campionamento al completamento del numero di campioni
             adc.standby();
+
+            // 
+                vspi.endTransaction();
 
             // debug: campioni persi?
             Serial.print("campioni memorizzati: ");
@@ -511,7 +530,7 @@ void process(void *pvParameters)
 
         // durata del ciclo di acquisizione reale
         delay(546);
-          dataReady = true;
+        dataReady = true;
       }
 
       // termine dello stato di campionamento
@@ -828,30 +847,5 @@ void bootMsg()
 
   Serial.println(F("Tries automatic reconnection to MQTT in case of network errors."));
   Serial.println(F("Note: you can try MQTTLens to check MQTT functionalities"));
-  Serial.println();
-}
-
-// ---------------------------------------------------------------------------------------------
-void printRcvMsg(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total)
-{
-  // print some information about the received message
-  Serial.print(F("Publish received on "));
-  printLocalTime();
-  Serial.print(F("  topic: "));
-  Serial.print(topic);
-  Serial.print(F("  payload: "));
-  Serial.print(payload);
-  Serial.print("  qos: ");
-  Serial.print(properties.qos);
-  Serial.print(F("  dup: "));
-  Serial.print(properties.dup);
-  Serial.print(F("  retain: "));
-  Serial.print(properties.retain);
-  Serial.print(F("  len: "));
-  Serial.print(len);
-  Serial.print(F("  index: "));
-  Serial.print(index);
-  Serial.print(F("  total: "));
-  Serial.println(total);
   Serial.println();
 }

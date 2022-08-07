@@ -71,6 +71,7 @@ void u8logTask(void *pvParameters)
             //Serial.printf("%s", temp);
             u8g2log.print(temp);
         }
+        delay(1);
     }
 }
 
