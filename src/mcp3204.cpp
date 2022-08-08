@@ -6,12 +6,26 @@ uint16_t mcp3204_pos = 0;
 float mcp3204buffer[MCP3204_BUFFER_SIZE];
 
 // costanti predefinite
+const uint8_t MCP3204byteLength = 3;
 const uint8_t command1 = 0b00000110;
 const uint16_t command2 = (MCP3204_Torque1 & 0x03) << 14;
 const uint16_t command3 = (MCP3204_Torque2 & 0x03) << 14;
 const uint16_t command4 = (MCP3204_Speed1 & 0x03) << 14;
 const uint16_t command5 = (MCP3204_Speed2 & 0x03) << 14;
+
 const float qStep = MCP3204_VREF / 4096.0;
+
+// dati da inviare a MCP3204 con transferBytes
+const uint8_t c1[MCP3204byteLength] = {command1, (command2 >> 8), (command2 & 0x00ff)};
+const uint8_t c2[MCP3204byteLength] = {command1, (command3 >> 8), (command3 & 0x00ff)};
+const uint8_t c3[MCP3204byteLength] = {command1, (command4 >> 8), (command4 & 0x00ff)};
+const uint8_t c4[MCP3204byteLength] = {command1, (command5 >> 8), (command5 & 0x00ff)};
+
+// dati trasmessi dal MCP3204 con transferBytes
+uint8_t o1[MCP3204byteLength];
+uint8_t o2[MCP3204byteLength];
+uint8_t o3[MCP3204byteLength];
+uint8_t o4[MCP3204byteLength];
 
 uint16_t mcp3204_BufferAvailable() {
     return (MCP3204_NUMBER_OF_SAMPLES_PER_CHANNEL - mcp3204_pos);
@@ -40,42 +54,42 @@ float mcp3204_getVoltage(SPIClass &hwspi, uint8_t cs, uint8_t channel) {
     return (v * qStep);
 }
 
+// VARIANTE della mcp3204_getAllVoltage
+// uso il metodo  void transferBytes(const uint8_t * data, uint8_t * out, uint32_t size)
+// dove:
+//  const uint8_t * data            è l'array dei byte da inviare allo slave
+//  uint8_t * out                   è l'array dei byte trasmessi dallo slave, stessa dimensione del precedente
+//  uint32_t size                   è il numero di byte da scambiare
+
 void mcp3204_getAllVoltage(SPIClass &hwspi, uint8_t cs, mcp3204Data *data) {
 
     uint16_t result[4];
-    
-    // hwspi.beginTransaction(SPISettings(MCP3204_SPI_CLOCK, MSBFIRST, SPI_MODE0));
 
     // canale Torque1
     digitalWrite(cs, LOW);
-    hwspi.transfer(command1);
-    result[0] = hwspi.transfer16(command2);
+    hwspi.transferBytes(c1, o1, MCP3204byteLength);
     digitalWrite(cs, HIGH);
 
     // canale Torque2
     digitalWrite(cs, LOW);
-    hwspi.transfer(command1);
-    result[1] = hwspi.transfer16(command3);
+    hwspi.transferBytes(c2, o2, MCP3204byteLength);   
     digitalWrite(cs, HIGH);
 
     // canale Speed1
     digitalWrite(cs, LOW);
-    hwspi.transfer(command1);
-    result[2] = hwspi.transfer16(command4);
+    hwspi.transferBytes(c3, o3, MCP3204byteLength);
     digitalWrite(cs, HIGH);
 
     // canale Speed2
     digitalWrite(cs, LOW);
-    hwspi.transfer(command1);
-    result[3] = hwspi.transfer16(command5);
+    hwspi.transferBytes(c4, o4, MCP3204byteLength);
     digitalWrite(cs, HIGH);
 
-    // hwspi.endTransaction();
-
-    data->volt0 = (float)(result[0] & 0x0fff) * qStep;
-    data->volt1 = (float)(result[1] & 0x0fff) * qStep;
-    data->volt2 = (float)(result[2] & 0x0fff) * qStep;
-    data->volt3 = (float)(result[3] & 0x0fff) * qStep;
+    // calcolo delle tensioni
+    data->volt0 = (float)((((uint16_t)o1[1])<<8 | o1[2]) & 0x0fff) * qStep;
+    data->volt1 = (float)((((uint16_t)o2[1])<<8 | o2[2]) & 0x0fff) * qStep;
+    data->volt2 = (float)((((uint16_t)o3[1])<<8 | o3[2]) & 0x0fff) * qStep;
+    data->volt3 = (float)((((uint16_t)o4[1])<<8 | o4[2]) & 0x0fff) * qStep;
 }
 
 void mcp3204_StoreBuffer(mcp3204Data *data, uint16_t position) {

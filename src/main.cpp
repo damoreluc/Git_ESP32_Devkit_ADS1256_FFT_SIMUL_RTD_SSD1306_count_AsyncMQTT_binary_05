@@ -103,10 +103,14 @@ volatile bool dataReady = false;
 void process(void *pvParameters);
 // task pubblicazione FFT
 void publishFFT(void *pvParameters);
+// task gestione ADC MCP3204
+void sampleMCP3204(void *pvParameters);
+
 // print some boot messages
 void bootMsg();
+
 // print some information about the received message
-void printRcvMsg(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
+// void printRcvMsg(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
 
 // funzione per acquisizione temperature RTD e inserimento in coda
 void readRTD();
@@ -118,6 +122,8 @@ fft_config_t *real_fft_plan;
 TaskHandle_t processTaskHandle;
 // handle del task di pubblicazione FFT
 TaskHandle_t publishTaskHandle;
+// handle del task di acquisizione con MCP3204
+TaskHandle_t sampleMCP3204TaskHandle;
 
 // struct per le temperature delle RTD
 typedef struct
@@ -290,6 +296,35 @@ void setup()
 
   if (getSensMode() == REAL_DATA)
   {
+    ssd1306_publish("Create MCP3204 task\n");
+  }
+
+  // crea il task di acquisizione con MCP3204
+  xReturned = xTaskCreatePinnedToCore(
+      sampleMCP3204,            // function that implements the task
+      "sampleMCP3204",          // name for the task
+      4096,                     // task size
+      NULL,                     // parameter passed into the task
+      2,                        // task priority
+      &sampleMCP3204TaskHandle, // the task's handle
+      0                         // pinned to core 0
+  );
+
+  if (xReturned != pdPASS)
+  {
+    Serial.println(F("Errore nella creazione del task sampleMCP3204"));
+    while (1)
+    {
+      if (getSensMode() == REAL_DATA)
+      {
+        ssd1306_publish("Error on sampleMCP3204\n");
+      }
+      yield();
+    }
+  }
+
+  if (getSensMode() == REAL_DATA)
+  {
     Serial.println(F("Configurazione ADC ADS1256"));
     ssd1306_publish("ADS1256 config...\n");
     // imposta la isr dedicata al data ready dell'ADC ADS1256, triggerata sul fronte di discesa dell'interrupt
@@ -432,7 +467,7 @@ void process(void *pvParameters)
         // associa l'interrupt esterno di nDRDY alla sua ISR
         attachInterrupt(nDRDY, ISR_DRDY, FALLING);
 
-        //
+        // modalità SPI per transazioni con MCP3204
         vspi.beginTransaction(SPISettings(MCP3204_SPI_CLOCK, MSBFIRST, SPI_MODE0));
       }
 
@@ -456,30 +491,14 @@ void process(void *pvParameters)
             numberOfAds1256Cycles++;
 
             // get MCP3204 new samples
-            if ((numberOfAds1256Cycles >= MCP3204_NUMBER_OF_ADS1256_CYCLES) && (mcp3204_BufferAvailable() > 0))
+            // if ((numberOfAds1256Cycles >= MCP3204_NUMBER_OF_ADS1256_CYCLES) && (mcp3204_BufferAvailable() > 0))
+            if ((numberOfAds1256Cycles >= MCP3204_NUMBER_OF_ADS1256_CYCLES))
             {
               numberOfAds1256Cycles = 0;
               countADCTorque++;
 
-              // Nota: ad ogni fase di Sampling (durata: 4096/7500 = 546,133ms)
-              //       questa sezione viene eseguita 3075 volte
-              //       corrisponde ad un intervallo di campionamento sul MCP3204 di 177,604us
-              //       ovvero 5630 campionamenti dei 4 canali
-              // vspi.beginTransaction(SPISettings(MCP3204_SPI_CLOCK, MSBFIRST, SPI_MODE0));
-              mcp3204_getAllVoltage(vspi, CS_MCP3204, &mcp3204_dati);
-              // fine della transazione con MCP3204
-              // vspi.endTransaction();
-              /*
-               * debug
-               */
-              // mcp3204_dati.volt0 = 0.5;
-              // mcp3204_dati.volt1 = 1.0;
-              // mcp3204_dati.volt2 = 1.5;
-              // mcp3204_dati.volt3 = 2.0;
-              /*
-               * fine debug
-               */
-              mcp3204_Push(&mcp3204_dati);
+              // wake-up the MCP3204 acquisition task
+              xTaskNotifyGive(sampleMCP3204TaskHandle);
             }
           }
           else
@@ -488,8 +507,8 @@ void process(void *pvParameters)
             //  ferma il campionamento al completamento del numero di campioni
             adc.standby();
 
-            // 
-                vspi.endTransaction();
+            //
+            vspi.endTransaction();
 
             // debug: campioni persi?
             Serial.print("campioni memorizzati: ");
@@ -761,6 +780,36 @@ void publishFFT(void *pvParameters)
 
       // sblocca il task di elaborazione, l'array output è libero
       xTaskNotifyGive(processTaskHandle);
+    }
+  }
+}
+
+//-----------------------------------------------------------------------------
+// task acquisizione con MCP3204
+// task gestione ADC MCP3204
+void sampleMCP3204(void *pvParameters)
+{
+  while (1)
+  {
+    // hang here until FFT is computed
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+    if (mcp3204_BufferAvailable() > 0)
+    {
+
+      mcp3204_getAllVoltage(vspi, CS_MCP3204, &mcp3204_dati);
+
+      /*
+       * debug
+       */
+      // mcp3204_dati.volt0 = 0.5;
+      // mcp3204_dati.volt1 = 1.0;
+      // mcp3204_dati.volt2 = 1.5;
+      // mcp3204_dati.volt3 = 2.0;
+      /*
+       * fine debug
+       */
+      mcp3204_Push(&mcp3204_dati);
     }
   }
 }
