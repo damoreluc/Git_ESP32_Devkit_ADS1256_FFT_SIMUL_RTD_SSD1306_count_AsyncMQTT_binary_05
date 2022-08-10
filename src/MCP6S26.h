@@ -24,6 +24,8 @@
 #define MCP6S26_CH4 4
 #define MCP6S26_CH5 5
 
+extern uint8_t MCP6S26_gains[8];
+
 // put the PGA into shutdown mode
 void mcp6s26_Shutdown(SPIClass &hwspi, uint8_t cs);
 

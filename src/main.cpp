@@ -19,6 +19,8 @@
 #include <Adafruit_MAX31865.h>
 #include <rtd_MAX31865.h>
 #include <mcp3204.h>
+#include <MCP6S26.h>
+#include <pga.h>
 #include <mqtt_topics.h>
 #include <sim_real_data_selector.h>
 
@@ -43,7 +45,9 @@ volatile uint16_t countData = 0;
 // ADC instance
 ADS1256 adc;
 // list of channels to sample
-byte channels[CHANNELS_N] = {adc.ads1256_mux[0], adc.ads1256_mux[1]};
+// byte channels[CHANNELS_N] = {adc.ads1256_mux[0], adc.ads1256_mux[1]};
+byte channels[CHANNELS_N] = {adc.ads1256_mux[0], adc.ads1256_mux[0]}; // mux now is located into PGA0
+
 // index of current channel
 uint8_t current_channel = 0;
 // index of channel to publish
@@ -142,6 +146,19 @@ QueueHandle_t xQueueRTD;
 // coda per conteggio accessi ADC dei sensori di coppia
 QueueHandle_t xQueueCountADCTorque;
 
+// // impostazioni correnti del PGA MCP6S26
+// typedef struct
+// {
+//   uint8_t channel;
+//   uint8_t gain;
+// } stPGA;
+
+// // impostazioni del PGA0
+// stPGA pga0 = {.channel = MCP6S26_CH0, .gain = MCP6S26_GAIN_1};
+
+// canali da selezionare a rotazione su PGA0
+uint8_t pga0_channels[2] = {MCP6S26_CH0, MCP6S26_CH1};
+
 // usata nel debug
 char datapkt[20] = "";
 
@@ -164,6 +181,7 @@ typedef enum
   Publish,
   WaitTrigger
 } tStati;
+
 volatile tStati _stato = WaitTrigger;
 
 // stampa stato attuale ---------------------------------------------------------------------------
@@ -331,8 +349,14 @@ void setup()
     // configurazione dell'ADS1256 e delle sue linee di controllo
     //  NB: SPI clock <= F_clkin / 4 = 7.68e6 / 4 = 1920000
     adc.init(hspi, nCS, nDRDY, nPDWN, 1900000);
-    adc.setChannel(adc.ads1256_mux[0]);
+    // adc.setChannel(adc.ads1256_mux[0]);
+    adc.setChannel(channels[0]);
     adc.standby();
+
+    // impostazione iniziale PGA0
+    pinMode(CS_PGA0, OUTPUT);
+    mcp6s26_setChannel(vspi, CS_PGA0, pga0.channel);
+    mcp6s26_setGain(vspi, CS_PGA0, pga0.gain);
   }
 
   // set RTOS timers to handle automatic reconnection to WiFi / MQTT broker
@@ -358,6 +382,16 @@ void setup()
   if (result == false)
   {
     Serial.printf("ERROR: Unable to add topic %s to the list\n", triggerTopic);
+    while (1)
+    {
+      yield();
+    }
+  }
+
+  result = AddSubscribedTopic(pgaSetGainTopic, 0);
+  if (result == false)
+  {
+    Serial.printf("ERROR: Unable to add topic %s to the list\n", pgaSetGainTopic);
     while (1)
     {
       yield();
@@ -416,6 +450,25 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
       Serial.println("Acquisizione ciclica");
     }
   }
+  else if (strcmp(topic, pgaSetGainTopic) == 0) // è arrivato un messaggio da pgaSetGainTopic
+  {
+    // deve essere un valore tra 0 e 7; forzato a 0 se esterno all'intervallo o valore non numerico
+    int k = atoi(payload);
+    if (k < 0 || k > (sizeof(MCP6S26_gains) - 1))
+    {
+      pga0.gain = MCP6S26_gains[0];
+    }
+    else
+    {
+      pga0.gain = MCP6S26_gains[k];
+    }
+    Serial.print("Selettore guadagno = ");
+    Serial.println(pga0.gain);
+    if (getSensMode() == REAL_DATA)
+    {
+      mcp6s26_setGain(vspi, CS_PGA0, pga0.gain);
+    }
+  }
 
   // print some information about the received message
   printRcvMsg(topic, payload, properties, len, index, total);
@@ -462,13 +515,23 @@ void process(void *pvParameters)
 
       if (getSensMode() == REAL_DATA)
       {
-        adc.setChannel(channels[current_channel]);
+        // modalità SPI per transazioni con MCP3204
+        vspi.beginTransaction(SPISettings(MCP3204_SPI_CLOCK, MSBFIRST, SPI_MODE0));
+
+        // adc.setChannel(channels[current_channel]);
+        //  uso il PGA per il multiplexing dei due ingresso
+        pga0.channel = pga0_channels[current_channel];
+        mcp6s26_setChannel(vspi, CS_PGA0, pga0.channel);
+        mcp6s26_setGain(vspi, CS_PGA0, pga0.gain);
+
+        Serial.print("PGA0 gain bits: ");
+        Serial.println(pga0.gain);
+
+        delay(5);
+
         adc.wakeup();
         // associa l'interrupt esterno di nDRDY alla sua ISR
         attachInterrupt(nDRDY, ISR_DRDY, FALLING);
-
-        // modalità SPI per transazioni con MCP3204
-        vspi.beginTransaction(SPISettings(MCP3204_SPI_CLOCK, MSBFIRST, SPI_MODE0));
       }
 
       break;

@@ -3,9 +3,12 @@
 // instruction set
 #define MCP6S26_NOP 0
 #define MCP6S26_SHUTDOWN 0x20
-#define MCP6S26_WRITE 0x60
+#define MCP6S26_WRITE 0x40
 #define MCP6S26_CHANNEL_REG 1
 #define MCP6S26_GAIN_REG 0
+
+// array dei guadagni
+uint8_t MCP6S26_gains[8] = {MCP6S26_GAIN_1, MCP6S26_GAIN_2, MCP6S26_GAIN_4, MCP6S26_GAIN_5, MCP6S26_GAIN_8, MCP6S26_GAIN_10, MCP6S26_GAIN_16, MCP6S26_GAIN_32};
 
 // put the PGA into shutdown mode
 void mcp6s26_Shutdown(SPIClass &hwspi, uint8_t cs) {
@@ -19,7 +22,7 @@ void mcp6s26_Shutdown(SPIClass &hwspi, uint8_t cs) {
 
 // set the AMUX channel
 void mcp6s26_setChannel(SPIClass &hwspi, uint8_t cs, uint8_t channel) {
-    uint16_t cmd = ((uint16_t)MCP6S26_CHANNEL_REG) << 8;
+    uint16_t cmd = ((uint16_t)(MCP6S26_WRITE | MCP6S26_CHANNEL_REG)) << 8;
 
     // check if channel is valid, else fall back to channel 0
     if (channel > MCP6S26_CH5 ) {
@@ -35,7 +38,7 @@ void mcp6s26_setChannel(SPIClass &hwspi, uint8_t cs, uint8_t channel) {
 
 // set the PGA gain
 void mcp6s26_setGain(SPIClass &hwspi, uint8_t cs, uint8_t gain) {
-    uint16_t cmd = ((uint16_t)MCP6S26_GAIN_REG) << 8;
+    uint16_t cmd = ((uint16_t)(MCP6S26_WRITE | MCP6S26_GAIN_REG)) << 8;
 
     // check if gain is valid, else fall back to gain = 1
     if (gain > MCP6S26_GAIN_32 ) {

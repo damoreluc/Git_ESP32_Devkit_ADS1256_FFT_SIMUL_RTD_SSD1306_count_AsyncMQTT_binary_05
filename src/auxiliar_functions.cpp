@@ -1,6 +1,9 @@
 #include "auxiliar_functions.h"
+#include <mqtt_topics.h>
 #include <ssd1306.h>
 #include <sim_real_data_selector.h>
+#include <MCP6S26.h>
+#include <pga.h>
 
 // Manage list of subscribed topics
 // topic to subscribe
@@ -124,6 +127,21 @@ void onMqttConnect(bool sessionPresent)
 
     // point to the next item
     ptr = ptr->next;
+  }
+
+  // publish actual PGA0 gain
+  if (mqttClient.connected())
+  {
+    uint16_t res = 0;
+    char s[3];
+    // on first connect or reconnect, set pga0 gain to x1
+    pga0.gain = MCP6S26_GAIN_1;
+    sprintf(s, "%1d", pga0.gain);
+    do
+    {
+      res = mqttClient.publish(pgaGetGainTopic, 0, false, (const char *)&s[0], strlen(s));
+      delay(10);
+    } while (res == 0);
   }
 }
 
