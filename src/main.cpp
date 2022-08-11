@@ -355,7 +355,7 @@ void setup()
     // configurazione dell'ADS1256 e delle sue linee di controllo
     //  NB: SPI clock <= F_clkin / 4 = 7.68e6 / 4 = 1920000
     adc.init(hspi, nCS, nDRDY, nPDWN, 1900000);
-    // adc.setChannel(adc.ads1256_mux[0]);  
+    // adc.setChannel(adc.ads1256_mux[0]);
     adc.setChannel(channels[0]);
     adc.standby();
 
@@ -464,33 +464,22 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
     if (k < 0 || k > (sizeof(MCP6S26_gains) - 1))
     {
       g = MCP6S26_gains[0];
-      pga0.gain = g;
     }
     else
     {
       g = MCP6S26_gains[k];
+    }
+
+    if (g != pga0.gain) {
       pga0.gain = g;
+      pga0.gain_changed = true;
     }
-    Serial.print("Selettore guadagno = ");
-    Serial.println(g); // pga0.gain);
-
-    // // inserisce il codice del guadagno nella coda
-    // if (uxQueueSpacesAvailable(xQueuePGA0) > 0)
-    // {
-    //   xQueueSendToBack(xQueuePGA0, (void *)&g, portMAX_DELAY);
-    // }
-
-    if (getSensMode() == REAL_DATA)
-    {
-      // modalità SPI per transazioni con MCP3204
-      vspi.beginTransaction(SPISettings(MCP3204_SPI_CLOCK, MSBFIRST, SPI_MODE0));
-      mcp6s26_setGain(vspi, CS_PGA0, g);
-      vspi.endTransaction();
-    }
+    Serial.print("\nSelettore guadagno = ");
+    Serial.println(pga0.gain);
   }
 
   // print some information about the received message
-  printRcvMsg(topic, payload, properties, len, index, total);
+  //printRcvMsg(topic, payload, properties, len, index, total);
 }
 
 // process and output task ------------------------------------------------------------------------
@@ -506,7 +495,7 @@ void process(void *pvParameters)
 
   while (1)
   {
-//    DebugCurrentStatus(_stato);
+    //    DebugCurrentStatus(_stato);
 
     switch (_stato)
     {
@@ -534,8 +523,6 @@ void process(void *pvParameters)
 
       if (getSensMode() == REAL_DATA)
       {
-        // uint8_t sg = 0;
-
         // modalità SPI per transazioni con MCP3204
         vspi.beginTransaction(SPISettings(MCP3204_SPI_CLOCK, MSBFIRST, SPI_MODE0));
 
@@ -544,21 +531,15 @@ void process(void *pvParameters)
         pga0.channel = pga0_channels[current_channel];
         mcp6s26_setChannel(vspi, CS_PGA0, pga0.channel);
 
-        // if (xQueuePGA0 != NULL)
-        // {
+        if (pga0.gain_changed)
+        {
+          pga0.gain_changed = false;
+          mcp6s26_setGain(vspi, CS_PGA0, pga0.gain);
+          Serial.print("\nPGA0 gain bits: ");
+          Serial.println(pga0.gain);
 
-        //   while (uxQueueMessagesWaiting(xQueuePGA0) > 0)
-        //   {
-        //     xQueueReceive(xQueuePGA0, &(sg), 5 * portTICK_PERIOD_MS); // portMAX_DELAY);
-            // pga0.gain = sg;
-            mcp6s26_setGain(vspi, CS_PGA0, pga0.gain);
-        //   }
-        // }
-
-        Serial.print("PGA0 gain bits: ");
-        Serial.println(pga0.gain);
-
-        delay(5);
+          delay(5);
+        }
 
         adc.wakeup();
         // associa l'interrupt esterno di nDRDY alla sua ISR
@@ -679,7 +660,7 @@ void process(void *pvParameters)
       // wake-up the publish task
       xTaskNotifyGive(publishTaskHandle);
 
-      // Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
+      Serial.printf("Free heap: %d bytes \t", ESP.getFreeHeap());
 
       // passa al prossimo canale
       current_channel++;
@@ -802,9 +783,9 @@ void publishFFT(void *pvParameters)
 
         uint32_t now = millis();
 
-        // Serial.print("Elapsed time: ");
-        // Serial.print(now - begin);
-        // Serial.println(" ms");
+        Serial.print("Elapsed time: ");
+        Serial.print(now - begin);
+        Serial.println(" ms");
 
         // pubblicazione degli eventuali dati delle RTD
         if (xQueueRTD != NULL)
