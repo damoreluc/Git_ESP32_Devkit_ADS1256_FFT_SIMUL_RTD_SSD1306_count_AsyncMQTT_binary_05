@@ -10,6 +10,6 @@ typedef struct
   uint8_t gain;
 } stPGA;
 
-extern volatile stPGA pga0;
+extern stPGA pga0;
 
 #endif

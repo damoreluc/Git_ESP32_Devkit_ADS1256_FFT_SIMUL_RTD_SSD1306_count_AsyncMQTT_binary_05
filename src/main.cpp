@@ -146,6 +146,9 @@ QueueHandle_t xQueueRTD;
 // coda per conteggio accessi ADC dei sensori di coppia
 QueueHandle_t xQueueCountADCTorque;
 
+// // coda per guadagno PGA
+// QueueHandle_t xQueuePGA0;
+
 // // impostazioni correnti del PGA MCP6S26
 // typedef struct
 // {
@@ -253,6 +256,9 @@ void setup()
   // creazione coda per pubblicazione conteggio accessi ADC coppie
   xQueueCountADCTorque = xQueueCreate(2, sizeof(uint32_t));
 
+  // // creazione coda per aggiornamento guadagno del PGA
+  // xQueuePGA0 = xQueueCreate(2, sizeof(uint16_t));
+
   if (getSensMode() == REAL_DATA)
   {
     ssd1306_publish("Create FFT task\n");
@@ -321,7 +327,7 @@ void setup()
   xReturned = xTaskCreatePinnedToCore(
       sampleMCP3204,            // function that implements the task
       "sampleMCP3204",          // name for the task
-      4096,                     // task size
+      2048,                     // task size
       NULL,                     // parameter passed into the task
       2,                        // task priority
       &sampleMCP3204TaskHandle, // the task's handle
@@ -349,7 +355,7 @@ void setup()
     // configurazione dell'ADS1256 e delle sue linee di controllo
     //  NB: SPI clock <= F_clkin / 4 = 7.68e6 / 4 = 1920000
     adc.init(hspi, nCS, nDRDY, nPDWN, 1900000);
-    // adc.setChannel(adc.ads1256_mux[0]);
+    // adc.setChannel(adc.ads1256_mux[0]);  
     adc.setChannel(channels[0]);
     adc.standby();
 
@@ -453,20 +459,33 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   else if (strcmp(topic, pgaSetGainTopic) == 0) // è arrivato un messaggio da pgaSetGainTopic
   {
     // deve essere un valore tra 0 e 7; forzato a 0 se esterno all'intervallo o valore non numerico
-    int k = atoi(payload);
+    uint8_t g;
+    int k = payload[0] - '0';
     if (k < 0 || k > (sizeof(MCP6S26_gains) - 1))
     {
-      pga0.gain = MCP6S26_gains[0];
+      g = MCP6S26_gains[0];
+      pga0.gain = g;
     }
     else
     {
-      pga0.gain = MCP6S26_gains[k];
+      g = MCP6S26_gains[k];
+      pga0.gain = g;
     }
     Serial.print("Selettore guadagno = ");
-    Serial.println(pga0.gain);
+    Serial.println(g); // pga0.gain);
+
+    // // inserisce il codice del guadagno nella coda
+    // if (uxQueueSpacesAvailable(xQueuePGA0) > 0)
+    // {
+    //   xQueueSendToBack(xQueuePGA0, (void *)&g, portMAX_DELAY);
+    // }
+
     if (getSensMode() == REAL_DATA)
     {
-      mcp6s26_setGain(vspi, CS_PGA0, pga0.gain);
+      // modalità SPI per transazioni con MCP3204
+      vspi.beginTransaction(SPISettings(MCP3204_SPI_CLOCK, MSBFIRST, SPI_MODE0));
+      mcp6s26_setGain(vspi, CS_PGA0, g);
+      vspi.endTransaction();
     }
   }
 
@@ -487,7 +506,7 @@ void process(void *pvParameters)
 
   while (1)
   {
-    DebugCurrentStatus(_stato);
+//    DebugCurrentStatus(_stato);
 
     switch (_stato)
     {
@@ -496,7 +515,7 @@ void process(void *pvParameters)
       countADCTorque = 0;
       dataReady = false;
       // imposta il canale corrente dell'ADC
-      Serial.printf("Channel: %d\n", current_channel);
+      // Serial.printf("Channel: %d\n", current_channel);
 
       // inizializzazione fft
       if (real_fft_plan == NULL)
@@ -515,6 +534,8 @@ void process(void *pvParameters)
 
       if (getSensMode() == REAL_DATA)
       {
+        // uint8_t sg = 0;
+
         // modalità SPI per transazioni con MCP3204
         vspi.beginTransaction(SPISettings(MCP3204_SPI_CLOCK, MSBFIRST, SPI_MODE0));
 
@@ -522,7 +543,17 @@ void process(void *pvParameters)
         //  uso il PGA per il multiplexing dei due ingresso
         pga0.channel = pga0_channels[current_channel];
         mcp6s26_setChannel(vspi, CS_PGA0, pga0.channel);
-        mcp6s26_setGain(vspi, CS_PGA0, pga0.gain);
+
+        // if (xQueuePGA0 != NULL)
+        // {
+
+        //   while (uxQueueMessagesWaiting(xQueuePGA0) > 0)
+        //   {
+        //     xQueueReceive(xQueuePGA0, &(sg), 5 * portTICK_PERIOD_MS); // portMAX_DELAY);
+            // pga0.gain = sg;
+            mcp6s26_setGain(vspi, CS_PGA0, pga0.gain);
+        //   }
+        // }
 
         Serial.print("PGA0 gain bits: ");
         Serial.println(pga0.gain);
@@ -573,13 +604,13 @@ void process(void *pvParameters)
             //
             vspi.endTransaction();
 
-            // debug: campioni persi?
-            Serial.print("campioni memorizzati: ");
-            Serial.print(sampleCounter);
-            Serial.print("   campioni acquisiti: ");
-            Serial.print(countData - 1);
-            Serial.print("   differenza: ");
-            Serial.println(countData - 1 - sampleCounter);
+            // // debug: campioni persi?
+            // Serial.print("campioni memorizzati: ");
+            // Serial.print(sampleCounter);
+            // Serial.print("   campioni acquisiti: ");
+            // Serial.print(countData - 1);
+            // Serial.print("   differenza: ");
+            // Serial.println(countData - 1 - sampleCounter);
 
             // resetta l'indice dell'array dei dati
             sampleCounter = 0;
@@ -648,7 +679,7 @@ void process(void *pvParameters)
       // wake-up the publish task
       xTaskNotifyGive(publishTaskHandle);
 
-      Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
+      // Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
 
       // passa al prossimo canale
       current_channel++;
@@ -771,9 +802,9 @@ void publishFFT(void *pvParameters)
 
         uint32_t now = millis();
 
-        Serial.print("Elapsed time: ");
-        Serial.print(now - begin);
-        Serial.println(" ms");
+        // Serial.print("Elapsed time: ");
+        // Serial.print(now - begin);
+        // Serial.println(" ms");
 
         // pubblicazione degli eventuali dati delle RTD
         if (xQueueRTD != NULL)
