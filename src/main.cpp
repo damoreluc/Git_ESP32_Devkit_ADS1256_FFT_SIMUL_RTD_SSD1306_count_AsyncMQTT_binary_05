@@ -470,7 +470,8 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
       g = MCP6S26_gains[k];
     }
 
-    if (g != pga0.gain) {
+    if (g != pga0.gain)
+    {
       pga0.gain = g;
       pga0.gain_changed = true;
     }
@@ -479,7 +480,7 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
   }
 
   // print some information about the received message
-  //printRcvMsg(topic, payload, properties, len, index, total);
+  // printRcvMsg(topic, payload, properties, len, index, total);
 }
 
 // process and output task ------------------------------------------------------------------------
@@ -723,6 +724,14 @@ void publishFFT(void *pvParameters)
       /*Multiply the magnitude of the DC component with (1/FFT_N) to obtain the DC component*/
       /* m[0] is the equalization coefficient */
       real_fft_plan->output[0] = real_fft_plan->output[0] * ONE_OVER_FFT_SIZE * m[0];
+      /* channel error correction:
+         by definition, all the FFT magnitude components are NON Negative value; we can safely change
+         the sign of the DC component (the first array's element) to allow the receiver verify
+         the correct sequence of the two halves sent over MQTT channel.
+         In some cases the Node-RED HMI swaps the two data blocks and, as a consequence, the DC value
+         is drawn at the half of the spectrum instead of the very first bin.
+      */
+      real_fft_plan->output[0] *= -1.0;
 
 #ifdef PRINT_COMPONENTS
       // Print the output
