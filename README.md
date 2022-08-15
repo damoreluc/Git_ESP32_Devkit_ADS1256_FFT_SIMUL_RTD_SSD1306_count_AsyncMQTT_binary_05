@@ -149,7 +149,7 @@ Il controllo remoto della ESP32 avviene tramite i seguenti _subscribed topics_ :
 | /pgaSetGain | stringa | 0..7 | Controlla il guadagno del PGA: <ul><li>0: Guadagno x 1</li><li>1: Guadagno x 2</li><li>2: Guadagno x 4</li><li>3: Guadagno x 5</li><li>4: Guadagno x 8</li><li>5: Guadagno x 10</li><li>6: Guadagno x 16</li><li>7: Guadagno x 32</li> </ul>|
 
 
-La scheda ESP32 comunica la telemetri attraverso i seguenti _published topics_ :
+La scheda ESP32 comunica la telemetria attraverso i seguenti _published topics_ :
 
 | nome_topic | Tipo | Note | Descrizione |
 |:--:|:---:|:---:|----|
@@ -166,5 +166,4 @@ La scheda ESP32 comunica la telemetri attraverso i seguenti _published topics_ :
 
 
 [^1]:  il primo elemento del primo messaggio viene cambiato di segno (sarà sempre negativo) per consentire a chi riceve di discriminare il primo messaggio dal secondo messaggio e ricostruire l'ordine dei 4096+4096 byte, altrimenti lo spettro delle ampiezze potrebbe risultare traslato di metà banda passante.
-
 ---
