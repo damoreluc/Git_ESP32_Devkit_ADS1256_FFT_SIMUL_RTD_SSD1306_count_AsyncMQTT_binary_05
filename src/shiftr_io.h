@@ -1,6 +1,3 @@
-
-
-
 #ifndef __SHIFTRIO
 #define __SHIFTRIO
 /*
