@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 // 1. ADS1256 and FFT section --------------------------------------------------
-// number of FFT channels on ADS1256
+// number of FFT channels on ADS1256 or MCP6S26
 #define CHANNELS_N 2
 
 // ADS1256 sampling frequency

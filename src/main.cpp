@@ -528,7 +528,7 @@ void process(void *pvParameters)
         vspi.beginTransaction(SPISettings(MCP3204_SPI_CLOCK, MSBFIRST, SPI_MODE0));
 
         // adc.setChannel(channels[current_channel]);
-        //  uso il PGA per il multiplexing dei due ingresso
+        //  uso il PGA per il multiplexing dei due ingressi accelerometrici
         pga0.channel = pga0_channels[current_channel];
         mcp6s26_setChannel(vspi, CS_PGA0, pga0.channel);
 
@@ -583,7 +583,7 @@ void process(void *pvParameters)
             //  ferma il campionamento al completamento del numero di campioni
             adc.standby();
 
-            //
+            // termina la transazione SPI conl'adc MCP3204
             vspi.endTransaction();
 
             // // debug: campioni persi?
@@ -687,7 +687,7 @@ void process(void *pvParameters)
       }
       else if (mqttClient.connected() && (triggered == FreeRun))
       {
-        // passa al prossimo canale o termina la scansione
+        // passa al prossimo canale 
         if (current_channel >= CHANNELS_N)
         {
           current_channel = 0;
@@ -696,6 +696,7 @@ void process(void *pvParameters)
       }
       else if (mqttClient.connected() && (triggered == Stop))
       {
+        // termina la scansione
         current_channel = 0;
         _stato = WaitTrigger;
       }
