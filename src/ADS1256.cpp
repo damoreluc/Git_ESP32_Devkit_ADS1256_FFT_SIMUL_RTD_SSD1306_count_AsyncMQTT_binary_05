@@ -373,6 +373,23 @@ void ADS1256::reset()
     digitalWrite(_pinCS, HIGH);
 }
 
+void ADS1256::selfcal()
+{
+    /* Description: Performs a self offset and self gain calibration. 
+     * The Offset Calibration Register (OFC) and Full-Scale
+     * Calibration Register (FSC) are updated after this operation. 
+     * DRDY goes high at the beginning of the calibration. It goes
+     * low after the calibration completes and settled data is ready. 
+     * Do not send additional commands after issuing this command
+     * until DRDY goes low indicating that the calibration is complete.
+     */
+    digitalWrite(_pinCS, LOW);
+    _adsSpi.transfer(ADS1256_SELFCAL);
+    digitalWrite(_pinCS, HIGH);
+    delayMicroseconds(10);
+    while(digitalRead(_pinRDY));
+}
+
 uint32_t IRAM_ATTR ADS1256::ReadRawData()
 {
     uint32_t val = 0;

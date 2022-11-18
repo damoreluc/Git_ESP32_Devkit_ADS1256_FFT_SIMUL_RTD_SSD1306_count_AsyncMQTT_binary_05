@@ -14,7 +14,7 @@
 #include "FFT.h"
 #include "FFT_signal.h"
 #include <fast_sqrt.h>
-#include <ADS1256.h>
+#include <ADS1256Ext.h>
 #include <ADS1256_equalizer.h>
 #include <Adafruit_MAX31865.h>
 #include <rtd_MAX31865.h>
@@ -43,10 +43,15 @@ volatile bool newData = false;
 volatile uint16_t countData = 0;
 
 // ADC instance
-ADS1256 adc;
+ADS1256Ext adc;
 // list of channels to sample
 // byte channels[CHANNELS_N] = {adc.ads1256_mux[0], adc.ads1256_mux[1]};
-byte channels[CHANNELS_N] = {adc.ads1256_mux[0], adc.ads1256_mux[0]}; // mux now is located into PGA0
+//byte channels[CHANNELS_N] = {adc.ads1256_mux[0], adc.ads1256_mux[0]}; // mux now is located into PGA0
+
+// using differential inputs:
+//  AIN0+ as signal+
+//  AIN1+ as ADC_Half_Vref
+byte channels[CHANNELS_N] = {adc.ads1256_dmux[0], adc.ads1256_dmux[0]}; // using PGA0 also as AMUX
 
 // index of current channel
 uint8_t current_channel = 0;
@@ -357,9 +362,12 @@ void setup()
     adc.init(hspi, nCS, nDRDY, nPDWN, 1900000);
     // adc.setChannel(adc.ads1256_mux[0]);
     adc.setChannel(channels[0]);
+    // set internal pga gain x1
+    adc.setGain(ADS1256Ext::PGA_1);
+    // put adc in stand-by
     adc.standby();
 
-    // impostazione iniziale PGA0
+    // impostazione iniziale PGA0 esterno
     pinMode(CS_PGA0, OUTPUT);
     mcp6s26_setChannel(vspi, CS_PGA0, pga0.channel);
     mcp6s26_setGain(vspi, CS_PGA0, pga0.gain);
