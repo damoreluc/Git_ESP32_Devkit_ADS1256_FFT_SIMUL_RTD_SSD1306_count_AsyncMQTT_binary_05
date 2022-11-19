@@ -211,6 +211,10 @@ void setup()
 
   Serial.begin(115200);
   bootMsg();
+  
+  // https://randomnerdtutorials.com/solved-reconnect-esp32-to-wifi/
+  // [SOLVED] Reconnect ESP32 to Wi-Fi Network After Lost Connection
+  WiFi.disconnect();
 
   if (getSensMode() == REAL_DATA)
   {
