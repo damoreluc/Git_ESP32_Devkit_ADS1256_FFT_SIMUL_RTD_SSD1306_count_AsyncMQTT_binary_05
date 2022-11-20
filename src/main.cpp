@@ -46,12 +46,12 @@ volatile uint16_t countData = 0;
 ADS1256Ext adc;
 // list of channels to sample
 // byte channels[CHANNELS_N] = {adc.ads1256_mux[0], adc.ads1256_mux[1]};
-//byte channels[CHANNELS_N] = {adc.ads1256_mux[0], adc.ads1256_mux[0]}; // mux now is located into PGA0
+byte channels[CHANNELS_N] = {adc.ads1256_mux[0], adc.ads1256_mux[0]}; // mux now is located into PGA0
 
 // using differential inputs:
 //  AIN0+ as signal+
 //  AIN1+ as ADC_Half_Vref
-byte channels[CHANNELS_N] = {adc.ads1256_dmux[0], adc.ads1256_dmux[0]}; // using PGA0 also as AMUX
+//byte channels[CHANNELS_N] = {adc.ads1256_dmux[0], adc.ads1256_dmux[0]}; // using PGA0 also as AMUX
 
 // index of current channel
 uint8_t current_channel = 0;
@@ -212,9 +212,9 @@ void setup()
   Serial.begin(115200);
   bootMsg();
   
-  // https://randomnerdtutorials.com/solved-reconnect-esp32-to-wifi/
-  // [SOLVED] Reconnect ESP32 to Wi-Fi Network After Lost Connection
-  WiFi.disconnect();
+  // // https://randomnerdtutorials.com/solved-reconnect-esp32-to-wifi/
+  // // [SOLVED] Reconnect ESP32 to Wi-Fi Network After Lost Connection
+  // WiFi.disconnect();
 
   if (getSensMode() == REAL_DATA)
   {

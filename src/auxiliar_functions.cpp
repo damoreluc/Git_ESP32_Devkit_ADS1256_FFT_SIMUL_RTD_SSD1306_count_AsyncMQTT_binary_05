@@ -81,16 +81,25 @@ void printLocalTime()
 // connect to WiFi network - specify your WiFi ID in perf.h file --------------
 void connectToWifi(const char *_ssid, const char *_pswd)
 {
-  Serial.println(F("Connecting to Wi-Fi..."));
-  WiFi.begin(_ssid, _pswd);
-  Serial.println(WiFi.macAddress());
-
-  if (getSensMode() == REAL_DATA)
+  if (WiFi.status() != WL_CONNECTED)
   {
-    ssd1306_publish("Connecting to Wi-Fi\n");
-    char s[21] = "";
-    sprintf(s, "MAC %s\n", WiFi.macAddress().c_str());
-    ssd1306_publish(s);
+    Serial.println(F("Connecting to Wi-Fi..."));
+    // https://randomnerdtutorials.com/solved-reconnect-esp32-to-wifi/
+    // [SOLVED] Reconnect ESP32 to Wi-Fi Network After Lost Connection
+
+    WiFi.disconnect();
+    delay(200);
+    WiFi.begin(_ssid, _pswd);
+
+    Serial.println(WiFi.macAddress());
+
+    if (getSensMode() == REAL_DATA)
+    {
+      ssd1306_publish("Connecting to Wi-Fi\n");
+      char s[21] = "";
+      sprintf(s, "MAC %s\n", WiFi.macAddress().c_str());
+      ssd1306_publish(s);
+    }
   }
 }
 
