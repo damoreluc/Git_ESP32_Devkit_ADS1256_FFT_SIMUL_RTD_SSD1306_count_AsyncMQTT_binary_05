@@ -1,9 +1,9 @@
-#include "auxiliar_functions.h"
-#include <mqtt_topics.h>
-#include <ssd1306.h>
-#include <sim_real_data_selector.h>
-#include <MCP6S26.h>
-#include <pga.h>
+#include <auxiliar/auxiliar_functions.h>
+#include <mqtt/mqtt_topics.h>
+#include <auxiliar/ssd1306.h>
+#include <acquisition/sim_real_data_selector.h>
+#include <acquisition/MCP6S26.h>
+#include <acquisition/pga.h>
 
 // Manage list of subscribed topics
 // topic to subscribe

@@ -1,6 +1,6 @@
 #include <Arduino.h>
-#include <ADS1256_equalizer.h>
-#include <dati.h>
+#include <acquisition/ADS1256_equalizer.h>
+#include <acquisition/dati.h>
 
 void create_equalizer(float *table)
 {

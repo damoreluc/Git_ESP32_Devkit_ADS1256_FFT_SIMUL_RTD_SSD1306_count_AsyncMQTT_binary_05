@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <HW_setup.h>
 #include <SPI.h>
-#include <dati.h>
+#include <acquisition/dati.h>
 
 typedef struct {
   float volt0;

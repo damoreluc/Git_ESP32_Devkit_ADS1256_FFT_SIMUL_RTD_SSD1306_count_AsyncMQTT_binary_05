@@ -1,4 +1,4 @@
-#include <MCP6S26.h>
+#include <acquisition/MCP6S26.h>
 
 // instruction set
 #define MCP6S26_NOP 0

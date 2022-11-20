@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <rtd_MAX31865.h>
+#include <acquisition/rtd_MAX31865.h>
 
 // The value of the onboard Rref resistor. Use 430.0 for PT100 and 4300.0 for PT1000
 #define RREF 4300.0

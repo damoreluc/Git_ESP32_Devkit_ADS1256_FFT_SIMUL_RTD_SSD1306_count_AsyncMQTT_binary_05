@@ -1,36 +1,36 @@
 #include <Arduino.h>
-#include <pref.h>
-#include <HW_setup.h>
 #include <WiFi.h>
-#include <wifiCallBacks.h>
+#include <wifi/pref.h>
+#include <HW_setup.h>
+#include <wifi/wifiCallBacks.h>
+#include <AsyncMqttClient.h>
 #include <Wire.h>
 #include <SPI.h>
-#include <ssd1306.h>
-#include <AsyncMqttClient.h>
 #include <time.h>
-#include <localTime.h>
-#include <dati.h>
-#include "auxiliar_functions.h"
-#include "FFT.h"
-#include "FFT_signal.h"
-#include <fast_sqrt.h>
-#include <ADS1256Ext.h>
-#include <ADS1256_equalizer.h>
+#include <localtime/localTime.h>
+#include <auxiliar/auxiliar_functions.h>
+#include <auxiliar/FFT.h>
+#include <auxiliar/FFT_signal.h>
+#include <auxiliar/ssd1306.h>
+#include <auxiliar/fast_sqrt.h>
+#include <acquisition/dati.h>
+#include <acquisition/ADS1256Ext.h>
+#include <acquisition/ADS1256_equalizer.h>
 #include <Adafruit_MAX31865.h>
-#include <rtd_MAX31865.h>
-#include <mcp3204.h>
-#include <MCP6S26.h>
-#include <pga.h>
-#include <mqtt_topics.h>
-#include <sim_real_data_selector.h>
+#include <acquisition/rtd_MAX31865.h>
+#include <acquisition/mcp3204.h>
+#include <acquisition/MCP6S26.h>
+#include <acquisition/pga.h>
+#include <mqtt/mqtt_topics.h>
+#include <acquisition/sim_real_data_selector.h>
 
 // uncomment this #define to print fft components
 //#define PRINT_COMPONENTS
 
 // uncomment one of following #include to set the MQTT broker.
 // Leaving all the comments will use the default broker (test.mosquitto.org)
-#include <shiftr_io.h>
-//#include <raspi4.h>
+#include <broker/shiftr_io.h>
+//#include <broker/raspi4.h>
 
 // canale SPI per connessione con ADC ADS1256
 SPIClass hspi = SPIClass(HSPI);

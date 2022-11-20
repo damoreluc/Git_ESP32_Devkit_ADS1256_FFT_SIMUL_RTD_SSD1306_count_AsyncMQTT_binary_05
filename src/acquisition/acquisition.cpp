@@ -1,4 +1,4 @@
-#include "acquisition.h"
+#include <acquisition/acquisition.h>
 #include <Arduino.h>
 #include <stdio.h>
 

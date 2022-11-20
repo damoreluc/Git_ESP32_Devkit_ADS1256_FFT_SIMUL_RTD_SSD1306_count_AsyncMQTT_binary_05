@@ -1,4 +1,4 @@
-#include <dati.h>
+#include <acquisition/dati.h>
 
 double Ts = 1.0/((float)FSAMPLE);
 double df = 1.0 / (Ts * FFT_SIZE);

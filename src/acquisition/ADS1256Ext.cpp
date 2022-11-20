@@ -1,5 +1,5 @@
-#include <ADS1256.h>
-#include <ADS1256Ext.h>
+#include <acquisition/ADS1256.h>
+#include <acquisition/ADS1256Ext.h>
 
 #define ADS1256_ADCON 0x02
 

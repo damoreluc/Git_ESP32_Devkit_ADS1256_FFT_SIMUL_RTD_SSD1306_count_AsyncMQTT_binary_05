@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <ssd1306.h>
+#include <auxiliar/ssd1306.h>
 
 // display, collegato sui pin predefiniti di Wire0, senza linea di reset:
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* clock=*/SCL, /* data=*/SDA, /* reset=*/U8X8_PIN_NONE);

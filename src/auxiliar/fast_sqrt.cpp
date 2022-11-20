@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <fast_sqrt.h>
+#include <auxiliar/fast_sqrt.h>
 
 float Q_rsqrt( float number )
 {

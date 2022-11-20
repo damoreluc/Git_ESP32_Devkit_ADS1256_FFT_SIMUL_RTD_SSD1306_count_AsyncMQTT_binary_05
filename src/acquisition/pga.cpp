@@ -1,5 +1,5 @@
-#include <pga.h>
-#include <MCP6S26.h>
+#include <acquisition/pga.h>
+#include <acquisition/MCP6S26.h>
 
 
 

@@ -1,11 +1,11 @@
-#include <wifiCallBacks.h>
-#include <auxiliar_functions.h>
-#include <ssd1306.h>
+#include <wifi/wifiCallBacks.h>
+#include <auxiliar/auxiliar_functions.h>
+#include <auxiliar/ssd1306.h>
 #include <AsyncMqttClient.h>
 #include <time.h>
 #include <HW_setup.h>
 //#include <_modoCompilazione.h>
-#include <sim_real_data_selector.h>
+#include <acquisition/sim_real_data_selector.h>
 
 // new Wifi events handler ------------------------------------------------------------------------
 void WiFiEvent(WiFiEvent_t event)

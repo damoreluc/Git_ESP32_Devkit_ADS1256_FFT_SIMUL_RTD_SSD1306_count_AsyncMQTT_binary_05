@@ -4,9 +4,9 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <AsyncMqttClient.h>
-#include "time.h"
-#include "localTime.h"
-#include "HW_setup.h"
+#include <time.h>
+#include <localtime/localTime.h>
+#include <HW_setup.h>
 
 /******************************************************************************
  * bunch of intermediata functions to ease wifi and MQTT support

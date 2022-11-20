@@ -4,9 +4,9 @@
  Author:	Yordan
 */
 
-#include "ADS1256.h"
-#include "esp32-hal-gpio.h"
-#include "SPI.h"
+#include <acquisition/ADS1256.h>
+#include <esp32-hal-gpio.h>
+#include <SPI.h>
 
 // ADS1256 commands
 #define ADS1256_WAKEUP 0x00

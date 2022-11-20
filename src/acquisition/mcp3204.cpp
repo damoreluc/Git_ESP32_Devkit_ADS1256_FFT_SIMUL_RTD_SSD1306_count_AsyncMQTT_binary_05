@@ -1,4 +1,4 @@
-#include <mcp3204.h>
+#include <acquisition/mcp3204.h>
 
 // indice della prima posizione libera nell'array dei campionamenti
 uint16_t mcp3204_pos = 0;

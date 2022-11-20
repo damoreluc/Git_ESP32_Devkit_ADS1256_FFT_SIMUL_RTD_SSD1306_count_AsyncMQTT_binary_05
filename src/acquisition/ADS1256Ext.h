@@ -2,7 +2,7 @@
 #define _ADS1256EXT_H
 
 #include <Arduino.h>
-#include <ADS1256.h>
+#include <acquisition/ADS1256.h>
 
 class ADS1256Ext : public ADS1256 {
     public: 
