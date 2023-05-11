@@ -123,7 +123,7 @@ const char *mqttPassword = "";
 
 ## Identificativo MQTT della scheda ESP32
 
-Nel file `mqtt_topics.h` è definita la tag **_thisClient_** che identifica tutti i messaggi MQTT pubblicati da o destinati a questa scheda di acquisizione. Moficicarlo in base alle proprie esigenze.
+Nel file `mqtt_topics.h` è definita la tag **_thisClient_** che identifica tutti i messaggi MQTT pubblicati da o destinati a questa scheda di acquisizione. Modificarlo in base alle proprie esigenze.
 
 ```
 // MQTT client ID
