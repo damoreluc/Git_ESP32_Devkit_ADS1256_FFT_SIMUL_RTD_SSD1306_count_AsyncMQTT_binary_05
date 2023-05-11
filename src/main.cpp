@@ -51,7 +51,7 @@ byte channels[CHANNELS_N] = {adc.ads1256_mux[0], adc.ads1256_mux[0]}; // mux now
 // using differential inputs:
 //  AIN0+ as signal+
 //  AIN1+ as ADC_Half_Vref
-//byte channels[CHANNELS_N] = {adc.ads1256_dmux[0], adc.ads1256_dmux[0]}; // using PGA0 also as AMUX
+// byte channels[CHANNELS_N] = {adc.ads1256_dmux[0], adc.ads1256_dmux[0]}; // using PGA0 also as AMUX
 
 // index of current channel
 uint8_t current_channel = 0;
@@ -165,7 +165,7 @@ QueueHandle_t xQueueCountADCTorque;
 // stPGA pga0 = {.channel = MCP6S26_CH0, .gain = MCP6S26_GAIN_1};
 
 // canali da selezionare a rotazione su PGA0
-uint8_t pga0_channels[2] = {MCP6S26_CH0, MCP6S26_CH1};
+uint8_t pga0_channels[2] = {MCP6S26_CH1, MCP6S26_CH3};
 
 // usata nel debug
 char datapkt[20] = "";
@@ -367,14 +367,20 @@ void setup()
     // adc.setChannel(adc.ads1256_mux[0]);
     adc.setChannel(channels[0]);
     // set internal pga gain x1
-    adc.setGain(ADS1256Ext::PGA_1);
+    adc.setGain(ADS1256Ext::PGA_2);
     // put adc in stand-by
     adc.standby();
+
+    Serial.println(F("Configurazione PGA MCP6S26"));
+    ssd1306_publish("PGA config...\n");
 
     // impostazione iniziale PGA0 esterno
     pinMode(CS_PGA0, OUTPUT);
     mcp6s26_setChannel(vspi, CS_PGA0, pga0.channel);
     mcp6s26_setGain(vspi, CS_PGA0, pga0.gain);
+
+    Serial.println(F("Configurazione ADC e PGA completata"));
+    ssd1306_publish("ADC config done\n");
   }
 
   // set RTOS timers to handle automatic reconnection to WiFi / MQTT broker

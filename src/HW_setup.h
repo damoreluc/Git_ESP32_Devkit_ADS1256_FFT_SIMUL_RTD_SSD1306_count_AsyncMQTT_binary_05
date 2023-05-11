@@ -94,6 +94,6 @@
 // MCP3204 canale velocità 2
 #define MCP3204_Speed2 3
 // MCP3204 analog Vref
-#define MCP3204_VREF 3.3
+#define MCP3204_VREF 2.50
 
 #endif
