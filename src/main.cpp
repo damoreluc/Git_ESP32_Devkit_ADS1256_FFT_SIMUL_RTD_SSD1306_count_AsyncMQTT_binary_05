@@ -25,12 +25,12 @@
 #include <acquisition/sim_real_data_selector.h>
 
 // uncomment this #define to print fft components
-//#define PRINT_COMPONENTS
+// #define PRINT_COMPONENTS
 
 // uncomment one of following #include to set the MQTT broker.
 // Leaving all the comments will use the default broker (test.mosquitto.org)
 #include <broker/shiftr_io.h>
-//#include <broker/raspi4.h>
+// #include <broker/raspi4.h>
 
 // canale SPI per connessione con ADC ADS1256
 SPIClass hspi = SPIClass(HSPI);
@@ -148,6 +148,10 @@ stRTD temperature;
 // coda per temperature RTD
 QueueHandle_t xQueueRTD;
 
+// coda per passaggio campioni accelerometro da ISR a MSF
+const uint16_t uiQueueISRAccelSize = 50;
+QueueHandle_t xQueueISRAccel;
+
 // coda per conteggio accessi ADC dei sensori di coppia
 QueueHandle_t xQueueCountADCTorque;
 
@@ -211,7 +215,7 @@ void setup()
 
   Serial.begin(115200);
   bootMsg();
-  
+
   // // https://randomnerdtutorials.com/solved-reconnect-esp32-to-wifi/
   // // [SOLVED] Reconnect ESP32 to Wi-Fi Network After Lost Connection
   // WiFi.disconnect();
@@ -258,6 +262,9 @@ void setup()
   // setup RTD2 object: set to 2WIRE, 3WIRE or 4WIRE as necessary
   RTD2.begin(MAX31865_3WIRE);
   delay(500);
+
+  // creazione coda per passaggio campioni accelerometro da ISR a MSF
+  xQueueISRAccel = xQueueCreate(uiQueueISRAccelSize, sizeof(uint32_t));
 
   // creazione coda per pubblicazione temperatura delle RTD
   xQueueRTD = xQueueCreate(5, sizeof(stRTD));
@@ -509,6 +516,7 @@ void process(void *pvParameters)
   static uint16_t sampleCounter = 0; // number of samples gathered
   static uint32_t numberOfAds1256Cycles = 0;
   static uint32_t countADCTorque = 0; // conteggio accessi ADC sensori di coppia
+  uint32_t iadcValue;
   float adcValue;
   int kk;
 
@@ -572,15 +580,16 @@ void process(void *pvParameters)
       if (getSensMode() == REAL_DATA)
       {
 
-        if (newData) // settato dalla ISR su DRDY dell'ADS1256
+        // if (newData) // settato dalla ISR su DRDY dell'ADS1256
+        if (sampleCounter < FFT_SIZE)
         {
-          newData = false;
-
-          if (sampleCounter < FFT_SIZE)
+          if (xQueueReceive(xQueueISRAccel, (void *)&iadcValue, 2) == pdTRUE)
           {
+            newData = false;
+
             // get ADS1256 new sample
-            adcValue = (float)adc.ReadRawData();
-            real_fft_plan->input[sampleCounter] = adc.volt(adcValue);
+            // adcValue = (float)adc.ReadRawData();
+            real_fft_plan->input[sampleCounter] = adc.volt(iadcValue);
             sampleCounter++;
             numberOfAds1256Cycles++;
 
@@ -595,30 +604,30 @@ void process(void *pvParameters)
               xTaskNotifyGive(sampleMCP3204TaskHandle);
             }
           }
-          else
-          {
-            detachInterrupt(nDRDY);
-            //  ferma il campionamento al completamento del numero di campioni
-            adc.standby();
+        }
+        else
+        {
+          detachInterrupt(nDRDY);
+          //  ferma il campionamento al completamento del numero di campioni
+          adc.standby();
 
-            // termina la transazione SPI conl'adc MCP3204
-            vspi.endTransaction();
+          // termina la transazione SPI conl'adc MCP3204
+          vspi.endTransaction();
 
-            // // debug: campioni persi?
-            // Serial.print("campioni memorizzati: ");
-            // Serial.print(sampleCounter);
-            // Serial.print("   campioni acquisiti: ");
-            // Serial.print(countData - 1);
-            // Serial.print("   differenza: ");
-            // Serial.println(countData - 1 - sampleCounter);
+          // debug: campioni persi?
+          Serial.print("campioni memorizzati: ");
+          Serial.print(sampleCounter);
+          Serial.print("   campioni acquisiti: ");
+          Serial.print(countData - 1);
+          Serial.print("   differenza: ");
+          Serial.println(countData - 1 - sampleCounter);
 
-            // resetta l'indice dell'array dei dati
-            sampleCounter = 0;
-            countData = 0;
+          // resetta l'indice dell'array dei dati
+          sampleCounter = 0;
+          countData = 0;
 
-            // segnala la fine del campionamento alla loop()
-            dataReady = true;
-          }
+          // segnala la fine del campionamento alla loop()
+          dataReady = true;
         }
       }
 
@@ -705,7 +714,7 @@ void process(void *pvParameters)
       }
       else if (mqttClient.connected() && (triggered == FreeRun))
       {
-        // passa al prossimo canale 
+        // passa al prossimo canale
         if (current_channel >= CHANNELS_N)
         {
           current_channel = 0;
@@ -968,6 +977,10 @@ void IRAM_ATTR ISR_DRDY()
 {
   newData = true;
   countData++;
+  // get ADS1256 new sample
+  uint32_t adcValue = adc.ReadRawData();
+  // place the sample into the ISRAccel queue
+  BaseType_t result = xQueueSendFromISR(xQueueISRAccel, (void *)&adcValue, NULL);
 }
 
 //---------------------------------------------------------------------------------------------
